@@ -1,5 +1,10 @@
 name: Rust Nightly Release
 
+# Trigger once a day at 02:00 UTC
+# on:
+#   schedule:
+#     - cron: "0 2 * * *"
+#   workflow_dispatch: # allows manual triggering
 on:
   push:
     branches: [ "main" ]
@@ -9,7 +14,7 @@ env:
   RUSTFLAGS: "-Dwarnings"
 
 jobs:
-  build_nightly:
+  build:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -18,8 +23,8 @@ jobs:
             target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
           - build: windows
-            os: windows-latest
             target: x86_64-pc-windows-msvc
+            os: windows-latest
           - build: arm64
             target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
@@ -40,30 +45,35 @@ jobs:
       - name: Build binaries
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Create nightly tag (once)
-        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -f nightly
-          git push origin nightly --force
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: agent-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/agent${{ matrix.target == 'x86_64-pc-windows-msvc' && '.exe' || '' }}
 
-      - name: Create/update nightly release
-        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
-        id: release
+  publish:
+    needs: build_matrix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: release_files/
+
+      - name: Generate nightly tag
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          echo "RELEASE_TAG=nightly-$TIMESTAMP" >> $GITHUB_ENV
+
+      - name: Publish Nightly Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: nightly
-          name: Nightly Build
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.RELEASE_TAG }}
           draft: false
           prerelease: true
+          files: release_files/**
         env:
-          GITHUB_TOKEN: ${{ secrets.AUTH_TOKEN }}
-
-      - name: Upload binary to nightly release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: target/${{ matrix.target }}/release/agent${{ matrix.target == 'x86_64-pc-windows-gnu' && '.exe' || '' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.AUTH_TOKEN }}
-
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
