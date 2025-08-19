@@ -53,7 +53,6 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'  # Only publish on scheduled runs or manual trigger
 
     steps:
       - name: Checkout repository
