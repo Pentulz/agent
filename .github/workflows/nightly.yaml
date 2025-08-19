@@ -51,12 +51,12 @@ jobs:
           draft: false
           prerelease: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.AUTH_TOKEN }}
 
       - name: Upload binary to nightly release
         uses: softprops/action-gh-release@v1
         with:
           files: target/${{ matrix.target }}/release/agent${{ matrix.target == 'x86_64-pc-windows-gnu' && '.exe' || '' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.AUTH_TOKEN }}
 
