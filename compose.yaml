@@ -1,0 +1,5 @@
+services:
+  agent:
+    image: agent:latest
+    build: .
+    command: "agent"
