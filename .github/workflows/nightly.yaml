@@ -50,17 +50,43 @@ jobs:
         with:
           name: agent-${{ matrix.target }}${{ matrix.target == 'x86_64-pc-windows-msvc' && '.exe' || '' }}
           path: target/${{ matrix.target }}/release/agent${{ matrix.target == 'x86_64-pc-windows-msvc' && '.exe' || '' }}
-
   publish:
     needs: build
     runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'  # Only publish on scheduled runs or manual trigger
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: release_files/
+
+      - name: List downloaded files (debug)
+        run: find release_files/ -type f -ls
+
+      - name: Prepare release files
+        run: |
+          mkdir -p final_release/
+          # Move and rename files for release
+          find release_files/ -name "agent*" -type f | while read file; do
+            filename=$(basename "$file")
+            dirname=$(basename "$(dirname "$file")")
+            # Create descriptive names for the release files
+            case $dirname in
+              *linux-x86*)
+                cp "$file" "final_release/agent-linux-x64${filename##*agent}"
+                ;;
+              *windows*)
+                cp "$file" "final_release/agent-windows-x64.exe"
+                ;;
+              *arm64*)
+                cp "$file" "final_release/agent-linux-arm64${filename##*agent}"
+                ;;
+            esac
+          done
 
       - name: Generate nightly tag
         run: |
@@ -68,12 +94,22 @@ jobs:
           echo "RELEASE_TAG=nightly-$TIMESTAMP" >> $GITHUB_ENV
 
       - name: Publish Nightly Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2  # Updated to v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          name: ${{ env.RELEASE_TAG }}
+          name: "Nightly Release ${{ env.RELEASE_TAG }}"
           draft: false
           prerelease: true
-          files: release_files/**
+          files: final_release/*
+          body: |
+            Automated nightly release built from commit ${{ github.sha }}
+            
+            ## Changes
+            This release includes the latest changes from the main branch.
+            
+            ## Binaries
+            - `agent-linux-x64`: Linux x86_64 binary
+            - `agent-linux-arm64`: Linux ARM64 binary  
+            - `agent-windows-x64.exe`: Windows x86_64 binary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
