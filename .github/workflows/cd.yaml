@@ -1,4 +1,4 @@
-name: Rust Release Build
+name: CD
 # Trigger on nightly schedule, manual dispatch, main branch push, and release creation
 on:
   schedule:
