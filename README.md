@@ -43,6 +43,7 @@ This application cannot be used on its own. It is simply a slave that will retri
 - [rustup][rustup]
 
   First, install the rustup tool. Then install the correct rust's version:
+
   ```sh
   rustup toolchain install stable # (1.89 at the time of this writing)
   
@@ -65,13 +66,14 @@ cargo run
 The application can be used with docker.
 
 ```sh
-# TODO
+docker build -t agent:latest .
+docker run -d agent:latest
 ```
 
 Or you can use docker compose
 
 ```sh
-# TODO
+docker compose up --build
 ```
 
 #### Examples
@@ -128,5 +130,4 @@ Distributed under the MIT License. See `LICENSE` for more information.
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
 
 [rust]: https://www.rust-lang.org
-[docker]: https://www.docker.com
 [rustup]: https://rustup.rs
