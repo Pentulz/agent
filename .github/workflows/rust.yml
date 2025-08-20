@@ -4,43 +4,46 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-Dwarnings"
+  CARGO_HOME: ~/.cargo
 
 jobs:
   code_quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Run Clippy
         run: cargo clippy --all-targets --all-features
-      # Check code formatting
+
       - name: Check formatting
         run: cargo fmt --all --check
 
-  build_nightly:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - build: linux-x86
-            target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
+      - name: Run tests
+        run: cargo test --release
 
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    container:
+      image: xd009642/tarpaulin:develop-nightly
+      options: --security-opt seccomp=unconfined
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v2
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Generate code coverage
+        run: |
+          cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out html --output-dir coverage
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          targets: ${{ matrix.target }}
-
-      - name: Build binaries
-        # run: cargo build --release --target ${{ matrix.target }}
-        run: cargo check --all-targets --all-features --release --target ${{ matrix.target }}
-
-      - name: Run tests
-        run: cargo test --target ${{ matrix.target }}
+          name: coverage
+          path: coverage
+          if-no-files-found: ignore
