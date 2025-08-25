@@ -4,13 +4,13 @@ use reqwest::Error;
 
 use crate::api::client::ClientError;
 use crate::api::{ApiClient, ApiError};
-use crate::task::Task;
+use crate::job::Job;
 
 pub struct Agent {
     client: ApiClient,
     auth_token: String,
     checksum: String,
-    tasks: Vec<Task>,
+    tasks: Vec<Job>,
 }
 
 impl Agent {

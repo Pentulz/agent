@@ -3,7 +3,7 @@ use std::{any::Any, error::Error};
 
 mod agent;
 mod api;
-mod task;
+mod job;
 mod tool;
 
 use crate::agent::Agent;
@@ -12,10 +12,6 @@ use crate::agent::Agent;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// Number of times to greet
-    #[arg(short, long, default_value_t = 1)]
-    count: u8,
-
     #[arg(long)]
     auth_token: String,
 

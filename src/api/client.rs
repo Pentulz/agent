@@ -1,5 +1,5 @@
 use crate::api::ApiError;
-use reqwest::{Error, Response, header::HeaderMap};
+use reqwest::{Body, Error, RequestBuilder, Response, header::HeaderMap};
 use thiserror::Error;
 use url::Url;
 
@@ -36,17 +36,38 @@ impl ApiClient {
         })
     }
 
-    pub async fn get(
+    async fn get(
         &self,
         uri: &str,
         query_string: Option<String>,
         headers: Option<HeaderMap>,
     ) -> Result<(), ClientError> {
         let url = format!("{}{}", self.base_url, uri);
+        let request = self.client.get(url);
 
-        println!("checking url: {}", url);
+        self.send(request, headers).await
+    }
 
-        let mut request = self.client.get(url);
+    async fn post(
+        &self,
+        uri: &str,
+        headers: Option<HeaderMap>,
+        body: Body,
+    ) -> Result<(), ClientError> {
+        let url = format!("{}{}", self.base_url, uri);
+        let mut request = self.client.post(url);
+
+        request = request.body(body);
+
+        self.send(request, headers).await
+    }
+
+    async fn send(
+        &self,
+        mut request: RequestBuilder,
+        headers: Option<HeaderMap>,
+    ) -> Result<(), ClientError> {
+        // TODO: add auth token
 
         if let Some(headers) = headers {
             request = request.headers(headers);
@@ -75,8 +96,6 @@ impl ApiClient {
 
         Ok(())
     }
-
-    // pub async fn health_check(&self) -> Result<bool, ApiError> {}
 
     // pub async fn register_agent(&self, agent_info: &AgentInfo) -> Result<(), ApiError> {}
     //

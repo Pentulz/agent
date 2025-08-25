@@ -5,7 +5,7 @@ use std::{
 
 use crate::{agent::Agent, tool::Tool};
 
-pub struct Task {
+pub struct Job {
     started_at: SystemTime,
     ended_at: SystemTime,
     timeout: Duration,
@@ -13,10 +13,10 @@ pub struct Task {
     agent_id: u32,
 }
 
-impl Task {
-    pub fn new(cmd: String, args: Vec<String>, timeout: Duration) -> Task {
+impl Job {
+    pub fn new(cmd: String, args: Vec<String>, timeout: Duration) -> Job {
         // TODO: implement properly started_at and ended_at later
-        Task {
+        Job {
             started_at: SystemTime::now(),
             ended_at: SystemTime::now(),
             timeout,
