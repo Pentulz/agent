@@ -1,9 +1,5 @@
-use std::string::ParseError;
-
-use reqwest::Error;
-
+use crate::api::ApiClient;
 use crate::api::client::ClientError;
-use crate::api::{ApiClient, ApiError};
 use crate::job::Job;
 
 pub struct Agent {

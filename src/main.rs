@@ -1,4 +1,5 @@
 use clap::Parser;
+use spdlog::prelude::*;
 use std::{
     error::Error,
     sync::{
@@ -32,6 +33,8 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    spdlog::default_logger().set_level_filter(spdlog::LevelFilter::All);
+
     let args = Args::parse();
 
     let base_url = args.api_url;
@@ -44,7 +47,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     while !term.load(Ordering::Relaxed) {
         agent.check_health().await?;
 
-        println!("check_health: OK");
+        info!("check_health: OK");
 
         sleep(Duration::from_secs(args.refresh_timeout)).await;
     }

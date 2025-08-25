@@ -1,5 +1,6 @@
 use crate::api::ApiError;
 use reqwest::{Body, Error, RequestBuilder, Response, header::HeaderMap};
+use spdlog::prelude::*;
 use thiserror::Error;
 use url::Url;
 
@@ -92,7 +93,7 @@ impl ApiClient {
             )));
         }
 
-        println!("res: {message}");
+        debug!("res: {message}");
 
         Ok(())
     }
