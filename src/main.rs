@@ -1,5 +1,13 @@
 use clap::Parser;
-use std::{any::Any, error::Error};
+use std::{
+    error::Error,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
+};
+use tokio::time::sleep;
 
 mod agent;
 mod api;
@@ -17,6 +25,9 @@ struct Args {
 
     #[arg(long)]
     api_url: String,
+
+    #[arg(long)]
+    refresh_timeout: u64,
 }
 
 #[tokio::main]
@@ -27,9 +38,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let token = args.auth_token.to_string();
 
     let agent = Agent::new(base_url, token)?;
-    agent.check_health().await?;
 
-    println!("check_health: OK");
+    let term = Arc::new(AtomicBool::new(false));
+    signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term))?;
+    while !term.load(Ordering::Relaxed) {
+        agent.check_health().await?;
+
+        println!("check_health: OK");
+
+        sleep(Duration::from_secs(args.refresh_timeout)).await;
+    }
 
     Ok(())
 }

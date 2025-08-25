@@ -92,7 +92,7 @@ impl ApiClient {
             )));
         }
 
-        println!("res: {}", message);
+        println!("res: {message}");
 
         Ok(())
     }
