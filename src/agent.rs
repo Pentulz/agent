@@ -1,12 +1,21 @@
-use crate::api::ApiClient;
+use serde::{Deserialize, Serialize};
+use spdlog::debug;
+
 use crate::api::client::ClientError;
+use crate::api::{ApiClient, ApiError};
 use crate::job::Job;
 
 pub struct Agent {
     client: ApiClient,
     auth_token: String,
     checksum: String,
-    tasks: Vec<Job>,
+    jobs: Vec<Job>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Tool {
+    cmd: String,
+    args: Vec<String>,
 }
 
 impl Agent {
@@ -16,16 +25,37 @@ impl Agent {
         Ok(Agent {
             auth_token: "".to_string(),
             checksum: "".to_string(),
-            tasks: vec![],
+            jobs: vec![],
             client,
         })
     }
 
     pub async fn check_health(&self) -> Result<(), ClientError> {
-        self.client.check_health().await?;
-        Ok(())
+        let result = self.client.get("/health", None, None).await;
+
+        match result {
+            Ok(_api_data) => Ok(()),
+            Err(err) => Err(err),
+        }
     }
 
+    pub async fn fetch_tools(&self) -> Result<Vec<Tool>, ClientError> {
+        let res = self.client.get("/tools", None, None).await?;
+        let parsed: Vec<Tool> = serde_json::from_str(&res.data.unwrap()).unwrap();
+
+        debug!("data: {:?}", parsed);
+
+        Ok(parsed)
+    }
+    pub async fn fetch_errors(&self) -> Result<Vec<ApiError>, ClientError> {
+        let res = self.client.get("/errors", None, None).await?;
+        let parsed: Vec<ApiError> = serde_json::from_str(&res.data.unwrap()).unwrap();
+
+        debug!("data: {:?}", parsed);
+
+        Ok(parsed)
+    }
+    //
     fn fetch_tasks() {}
 
     fn run_tasks() {}

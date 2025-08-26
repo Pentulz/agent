@@ -1,9 +1,44 @@
-use serde::{Deserialize, Serialize};
+use reqwest::StatusCode;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ApiResponse<T> {
-    pub success: bool,
+pub struct ApiData<T> {
+    #[serde(
+        serialize_with = "serialize_status_code",
+        deserialize_with = "deserialize_status_code"
+    )]
+    pub code: Option<StatusCode>,
     pub data: Option<T>,
-    pub message: Option<String>,
-    pub error: Option<String>,
+}
+
+impl<T> ApiData<T> {
+    pub fn new() -> ApiData<T> {
+        ApiData {
+            data: None,
+            code: None,
+        }
+    }
+}
+
+fn serialize_status_code<S>(code: &Option<StatusCode>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match code {
+        Some(status) => serializer.serialize_some(&status.as_u16()),
+        None => serializer.serialize_none(),
+    }
+}
+
+fn deserialize_status_code<'de, D>(deserializer: D) -> Result<Option<StatusCode>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt: Option<u16> = Option::deserialize(deserializer)?;
+    match opt {
+        Some(code) => StatusCode::from_u16(code)
+            .map(Some)
+            .map_err(serde::de::Error::custom),
+        None => Ok(None),
+    }
 }

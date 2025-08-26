@@ -1,4 +1,6 @@
-use crate::api::ApiError;
+use std::collections::HashMap;
+
+use crate::api::{ApiData, ApiError};
 use reqwest::{Body, Error, RequestBuilder, Response, header::HeaderMap};
 use spdlog::prelude::*;
 use thiserror::Error;
@@ -37,24 +39,24 @@ impl ApiClient {
         })
     }
 
-    async fn get(
+    pub async fn get(
         &self,
         uri: &str,
         query_string: Option<String>,
         headers: Option<HeaderMap>,
-    ) -> Result<(), ClientError> {
+    ) -> Result<ApiData<String>, ClientError> {
         let url = format!("{}{}", self.base_url, uri);
         let request = self.client.get(url);
 
         self.send(request, headers).await
     }
 
-    async fn post(
+    pub async fn post(
         &self,
         uri: &str,
         headers: Option<HeaderMap>,
         body: Body,
-    ) -> Result<(), ClientError> {
+    ) -> Result<ApiData<String>, ClientError> {
         let url = format!("{}{}", self.base_url, uri);
         let mut request = self.client.post(url);
 
@@ -67,7 +69,7 @@ impl ApiClient {
         &self,
         mut request: RequestBuilder,
         headers: Option<HeaderMap>,
-    ) -> Result<(), ClientError> {
+    ) -> Result<ApiData<String>, ClientError> {
         // TODO: add auth token
 
         if let Some(headers) = headers {
@@ -78,24 +80,26 @@ impl ApiClient {
         self.handle_response(res).await
     }
 
-    pub async fn check_health(&self) -> Result<(), ClientError> {
-        self.get("/health", None, None).await
-    }
-
-    async fn handle_response(&self, response: Response) -> Result<(), ClientError> {
+    async fn handle_response(&self, response: Response) -> Result<ApiData<String>, ClientError> {
         let status = response.status();
         let message = response.text().await?;
+        let body: HashMap<String, serde_json::Value> = serde_json::from_str(&message).unwrap();
 
-        if status.is_client_error() {
+        if status.is_client_error() || status.is_server_error() {
+            // TODO: maybe rename errors to error
             return Err(ClientError::ApiError(ApiError::new(
-                crate::api::error::ErrorCode::BadRequest,
-                message,
+                status,
+                body["errors"][0]["title"].to_string(),
+                body["errors"][0]["detail"].to_string(),
             )));
         }
 
-        debug!("res: {message}");
+        let mut api_response: ApiData<String> = ApiData::new();
+        if status.is_success() {
+            api_response.data = Some(body["data"].to_string());
+        }
 
-        Ok(())
+        Ok(api_response)
     }
 
     // pub async fn register_agent(&self, agent_info: &AgentInfo) -> Result<(), ApiError> {}
