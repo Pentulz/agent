@@ -214,17 +214,33 @@ impl Agent {
         Ok(())
     }
 
-    #[allow(dead_code)]
-    fn fetch_capabilities() {
-        // TODO: get list of cmds that will be run by an agent
-        // and check if they exist
-        todo!("");
+    async fn get_tools(&self) -> Result<Vec<Tool>, ClientError> {
+        let uri = "/tools";
+        let res = self.client.get(uri, None).await?;
+        let tools: Vec<Tool> = serde_json::from_str(&res.data.unwrap()).unwrap();
+
+        Ok(tools)
     }
 
-    #[allow(dead_code)]
-    fn submit_capabilities() {
-        // TODO: inform the backend which tools are available to an agent
-        todo!("");
+    pub async fn get_available_tools(&self) -> Result<Vec<Tool>, ClientError> {
+        let available_tools: Vec<Tool> = self
+            .get_tools()
+            .await?
+            .into_iter()
+            .filter(|tool| tool.is_available())
+            .collect();
+
+        Ok(available_tools)
+    }
+
+    pub async fn submit_capabilities(&self) -> Result<(), ClientError> {
+        let available_tools = self.get_available_tools().await?;
+
+        debug!("submiting capabilities: {:?}", &available_tools);
+
+        // TODO: post to submit capabilities
+
+        Ok(())
     }
 
     #[allow(dead_code)]

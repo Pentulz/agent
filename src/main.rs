@@ -41,6 +41,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let mut agent = Agent::new(base_url, token).await?;
 
+    // TODO: implement: fetch hostname and platform
+    // agent.register().await?;
+    agent.submit_capabilities().await?;
+
     agent.run_jobs().await?;
 
     let term = Arc::new(AtomicBool::new(false));
