@@ -31,6 +31,8 @@ impl fmt::Display for ApiError {
 
 impl std::error::Error for ApiError {}
 
+// TODO: remove warning
+#[allow(dead_code)]
 impl ApiError {
     pub fn new(code: StatusCode, title: String, detail: String) -> Self {
         ApiError {

@@ -8,6 +8,8 @@ use url::Url;
 
 pub struct ApiClient {
     base_url: String,
+    // TODO: remove warning
+    #[allow(dead_code)]
     auth_token: String,
     client: reqwest::Client,
 }
@@ -42,7 +44,6 @@ impl ApiClient {
     pub async fn get(
         &self,
         uri: &str,
-        query_string: Option<String>,
         headers: Option<HeaderMap>,
     ) -> Result<ApiData<String>, ClientError> {
         let url = format!("{}{}", self.base_url, uri);
@@ -51,6 +52,8 @@ impl ApiClient {
         self.send(request, headers).await
     }
 
+    // TODO: remove warning
+    #[allow(dead_code)]
     pub async fn post(
         &self,
         uri: &str,

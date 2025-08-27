@@ -1,10 +1,9 @@
-use std::{
-    process::Command,
-    time::{Duration, SystemTime},
-};
+use std::time::{Duration, SystemTime};
 
-use crate::{agent::Agent, tool::Tool};
+use crate::tool::Tool;
 
+// TODO: remove warning
+#[allow(dead_code)]
 pub struct Job {
     started_at: SystemTime,
     ended_at: SystemTime,
@@ -13,6 +12,8 @@ pub struct Job {
     agent_id: u32,
 }
 
+// TODO: remove warning
+#[allow(dead_code)]
 impl Job {
     pub fn new(cmd: String, args: Vec<String>, timeout: Duration) -> Job {
         // TODO: implement properly started_at and ended_at later
@@ -27,5 +28,9 @@ impl Job {
 
     pub fn run(&self) -> Result<String, std::io::Error> {
         self.tool.run()
+    }
+
+    fn submit_report() {
+        // TODO: send a report of a task like: agent_id, tool_id (NULL if tool not available), output
     }
 }
