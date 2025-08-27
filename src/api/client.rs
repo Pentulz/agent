@@ -109,18 +109,9 @@ impl ApiClient {
 
         Ok(api_response)
     }
-
-    // pub async fn register_agent(&self, agent_info: &AgentInfo) -> Result<(), ApiError> {}
-    //
-    // pub async fn fetch_tasks(&self) -> Result<Vec<TaskData>, ApiError> {}
-    //
-    // pub async fn get_task(&self, task_id: &str) -> Result<TaskData, ApiError> {}
-    //
-    // pub async fn submit_result(&self, result: &TaskResult) -> Result<(), ApiError> {}
-    //
-    // pub async fn heartbeat(&self, agent_id: &str) -> Result<(), ApiError> {}
 }
 
+// TODO: remove this or improve
 impl Default for ApiClient {
     fn default() -> Self {
         // Provide dummy values just to satisfy the trait

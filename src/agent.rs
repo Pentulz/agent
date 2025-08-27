@@ -19,6 +19,8 @@ enum AgentPlatform {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Agent {
     id: Option<String>,
+    #[serde(skip_serializing)]
+    #[allow(dead_code)]
     auth_token: String,
     #[serde(
         serialize_with = "serialize_jobs",
@@ -122,10 +124,10 @@ where
 #[allow(dead_code)]
 impl Agent {
     pub async fn new(base_url: String, auth_token: String) -> Result<Agent, ClientError> {
-        // let client = ApiClient::new(base_url, auth_token)?;
         let mut client = ApiClient::new(base_url, auth_token.clone())?;
 
-        let agent = Agent::get_by_id(&mut client, &auth_token).await?;
+        let mut agent = Agent::get_by_id(&mut client, &auth_token).await?;
+        agent.client = client;
 
         Ok(agent)
     }
@@ -141,12 +143,7 @@ impl Agent {
         let parsed: Result<Agent, SerdeError> = serde_json::from_str(&data);
 
         match parsed {
-            Ok(agent) => {
-                println!("Agent: {:?}", agent);
-                debug!("data: {:?}", agent);
-
-                Ok(agent)
-            }
+            Ok(agent) => Ok(agent),
 
             Err(e) => {
                 error!("JSON parse error: {}", e);
