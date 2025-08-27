@@ -5,7 +5,7 @@ use chrono::{DateTime, Duration, Utc};
 
 use crate::tool::Tool;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Job {
     id: String,
     name: String,

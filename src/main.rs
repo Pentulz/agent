@@ -39,14 +39,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let base_url = args.api_url;
     let token = args.auth_token.to_string();
 
-    let agent = Agent::new(base_url, token).await?;
+    let mut agent = Agent::new(base_url, token).await?;
+
+    agent.run_jobs().await?;
 
     let term = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term))?;
     while !term.load(Ordering::Relaxed) {
         agent.check_health().await?;
 
-        info!("check_health: OK");
+        debug!("Fetching jobs...");
+        agent.get_jobs().await?;
+        debug!("Finished");
+
+        debug!("Running jobs...");
+        agent.run_jobs().await?;
+        debug!("Finished");
 
         sleep(Duration::from_secs(args.refresh_timeout)).await;
     }

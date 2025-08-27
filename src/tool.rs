@@ -2,7 +2,7 @@ use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Tool {
     cmd: String,
     args: Vec<String>,
