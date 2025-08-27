@@ -40,6 +40,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let token = args.auth_token.to_string();
 
     let mut agent = Agent::new(base_url, token).await?;
+    let agent_json = serde_json::to_string_pretty(&agent).unwrap();
+
+    debug!("Current Agent: {}", agent_json);
 
     // TODO: implement: fetch hostname and platform
     // agent.register().await?;

@@ -1,4 +1,5 @@
 use std::sync::Arc;
+
 use std::sync::Mutex;
 
 use chrono::{DateTime, Utc};
@@ -12,6 +13,8 @@ use crate::api::client::ClientError;
 use crate::job::Job;
 use crate::{api::ApiClient, tool::Tool};
 use serde_json::Error as SerdeError;
+
+use gethostname::gethostname;
 
 #[derive(Debug, Serialize, Deserialize)]
 enum AgentPlatform {
@@ -133,6 +136,8 @@ impl Agent {
         let mut client = ApiClient::new(base_url, auth_token.clone())?;
 
         let mut agent = Agent::get_by_id(&mut client, &auth_token).await?;
+        agent.platform = Agent::get_platform();
+        agent.hostname = Some(Agent::get_hostname());
         agent.client = client;
 
         Ok(agent)
@@ -247,5 +252,18 @@ impl Agent {
     fn submit_report() {
         // TODO: send a report of a task like: agent_id, tool_id (NULL if tool not available), output
         todo!("");
+    }
+
+    fn get_hostname() -> String {
+        gethostname().to_string_lossy().into_owned()
+    }
+
+    fn get_platform() -> Option<AgentPlatform> {
+        match std::env::consts::OS {
+            "linux" => Some(AgentPlatform::Linux),
+            "macos" => Some(AgentPlatform::MacOs),
+            "windows" => Some(AgentPlatform::Windows),
+            _ => None, // Unknown OS
+        }
     }
 }
