@@ -1,5 +1,8 @@
 use std::process::Command;
 
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Tool {
     cmd: String,
     args: Vec<String>,

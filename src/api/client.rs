@@ -2,10 +2,12 @@ use std::collections::HashMap;
 
 use crate::api::{ApiData, ApiError};
 use reqwest::{Body, Error, RequestBuilder, Response, header::HeaderMap};
+use serde_json::Error as SerdeError;
 use spdlog::prelude::*;
 use thiserror::Error;
 use url::Url;
 
+#[derive(Debug)]
 pub struct ApiClient {
     base_url: String,
     // TODO: remove warning
@@ -24,6 +26,9 @@ pub enum ClientError {
 
     #[error("reqwest error")]
     ReqwestError(#[from] Error),
+
+    #[error("json error")]
+    JsonError(#[from] SerdeError),
 }
 
 impl ApiClient {
@@ -114,4 +119,15 @@ impl ApiClient {
     // pub async fn submit_result(&self, result: &TaskResult) -> Result<(), ApiError> {}
     //
     // pub async fn heartbeat(&self, agent_id: &str) -> Result<(), ApiError> {}
+}
+
+impl Default for ApiClient {
+    fn default() -> Self {
+        // Provide dummy values just to satisfy the trait
+        ApiClient {
+            base_url: String::new(),
+            auth_token: String::new(),
+            client: reqwest::Client::new(),
+        }
+    }
 }

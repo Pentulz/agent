@@ -15,7 +15,7 @@ mod api;
 mod job;
 mod tool;
 
-use crate::agent::Agent;
+use crate::{agent::Agent, job::Job};
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -40,17 +40,24 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let base_url = args.api_url;
     let token = args.auth_token.to_string();
 
-    let agent = Agent::new(base_url, token)?;
+    let agent = Agent::new(base_url, token).await?;
 
-    let term = Arc::new(AtomicBool::new(false));
-    signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term))?;
-    while !term.load(Ordering::Relaxed) {
-        agent.check_health().await?;
+    let json_str = serde_json::to_string_pretty(&agent).unwrap();
+    println!("agent as json: {}", json_str);
 
-        info!("check_health: OK");
+    // let job: Job = serde_json::from_str(job_json).unwrap();
+    // println!("{:?}", job);
+    //
 
-        sleep(Duration::from_secs(args.refresh_timeout)).await;
-    }
+    // let term = Arc::new(AtomicBool::new(false));
+    // signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term))?;
+    // while !term.load(Ordering::Relaxed) {
+    //     agent.check_health().await?;
+    //
+    //     info!("check_health: OK");
+    //
+    //     sleep(Duration::from_secs(args.refresh_timeout)).await;
+    // }
 
     Ok(())
 }
