@@ -17,7 +17,6 @@ mod tool;
 
 use crate::agent::Agent;
 
-/// Simple program to greet a person
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
@@ -40,14 +39,44 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let base_url = args.api_url;
     let token = args.auth_token.to_string();
 
-    let agent = Agent::new(base_url, token)?;
+    let mut agent = match Agent::new(base_url, token).await {
+        Ok(a) => a,
+        Err(error) => {
+            info!("Error: {}", error);
+            return Err(error.into());
+        }
+    };
+
+    let agent_json = serde_json::to_string_pretty(&agent).unwrap();
+
+    debug!("Current Agent: {}", agent_json);
+
+    debug!("Registring agent...");
+    agent.register().await?;
+    debug!("Finished!");
+
+    debug!("Submitting submit_capabilities...");
+    agent.submit_capabilities().await?;
+    debug!("Finished!");
+
+    agent.run_jobs().await?;
+
+    debug!("Submitting job report...");
+    agent.submit_report().await?;
+    debug!("Finished!");
 
     let term = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term))?;
     while !term.load(Ordering::Relaxed) {
         agent.check_health().await?;
 
-        info!("check_health: OK");
+        debug!("Fetching jobs...");
+        agent.get_jobs().await?;
+        debug!("Finished");
+
+        debug!("Running jobs...");
+        agent.run_jobs().await?;
+        debug!("Finished");
 
         sleep(Duration::from_secs(args.refresh_timeout)).await;
     }

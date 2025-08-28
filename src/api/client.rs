@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 
 use crate::api::{ApiData, ApiError};
-use reqwest::{Body, Error, RequestBuilder, Response, header::HeaderMap};
+use reqwest::{Error, RequestBuilder, Response, header::HeaderMap};
+use serde::Serialize;
+use serde_json::Error as SerdeError;
 use spdlog::prelude::*;
 use thiserror::Error;
 use url::Url;
 
+#[derive(Debug)]
 pub struct ApiClient {
     base_url: String,
     // TODO: remove warning
@@ -24,6 +27,9 @@ pub enum ClientError {
 
     #[error("reqwest error")]
     ReqwestError(#[from] Error),
+
+    #[error("json error")]
+    JsonError(#[from] SerdeError),
 }
 
 impl ApiClient {
@@ -54,16 +60,26 @@ impl ApiClient {
 
     // TODO: remove warning
     #[allow(dead_code)]
-    pub async fn post(
+    pub async fn post<T: Serialize>(
         &self,
         uri: &str,
         headers: Option<HeaderMap>,
-        body: Body,
+        body: &T,
     ) -> Result<ApiData<String>, ClientError> {
         let url = format!("{}{}", self.base_url, uri);
-        let mut request = self.client.post(url);
+        let request = self.client.post(url).json(body);
 
-        request = request.body(body);
+        self.send(request, headers).await
+    }
+
+    pub async fn patch<T: Serialize>(
+        &self,
+        uri: &str,
+        headers: Option<HeaderMap>,
+        body: &T,
+    ) -> Result<ApiData<String>, ClientError> {
+        let url = format!("{}{}", self.base_url, uri);
+        let request = self.client.patch(url).json(body);
 
         self.send(request, headers).await
     }
@@ -104,14 +120,16 @@ impl ApiClient {
 
         Ok(api_response)
     }
+}
 
-    // pub async fn register_agent(&self, agent_info: &AgentInfo) -> Result<(), ApiError> {}
-    //
-    // pub async fn fetch_tasks(&self) -> Result<Vec<TaskData>, ApiError> {}
-    //
-    // pub async fn get_task(&self, task_id: &str) -> Result<TaskData, ApiError> {}
-    //
-    // pub async fn submit_result(&self, result: &TaskResult) -> Result<(), ApiError> {}
-    //
-    // pub async fn heartbeat(&self, agent_id: &str) -> Result<(), ApiError> {}
+// TODO: remove this or improve
+impl Default for ApiClient {
+    fn default() -> Self {
+        // Provide dummy values just to satisfy the trait
+        ApiClient {
+            base_url: String::new(),
+            auth_token: String::new(),
+            client: reqwest::Client::new(),
+        }
+    }
 }

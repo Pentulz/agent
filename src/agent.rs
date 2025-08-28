@@ -1,37 +1,170 @@
-use serde::{Deserialize, Serialize};
-use spdlog::debug;
+use std::sync::Arc;
 
-use crate::api::ApiClient;
+use std::sync::Mutex;
+
+use chrono::{DateTime, Utc};
+use serde::Deserializer;
+use serde::Serializer;
+use serde::ser::SerializeSeq;
+use serde::{Deserialize, Serialize};
+use spdlog::{debug, error};
+
 use crate::api::client::ClientError;
 use crate::job::Job;
+use crate::{api::ApiClient, tool::Tool};
 
-// TODO: remove warning
-#[allow(dead_code)]
-pub struct Agent {
-    client: ApiClient,
-    auth_token: String,
-    checksum: String,
-    jobs: Vec<Job>,
+use gethostname::gethostname;
+
+#[derive(Debug, Serialize, Deserialize)]
+enum AgentPlatform {
+    Linux,
+    MacOs,
+    Windows,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Tool {
-    cmd: String,
-    args: Vec<String>,
+pub struct Agent {
+    id: Option<String>,
+    #[serde(skip_serializing)]
+    #[allow(dead_code)]
+    auth_token: String,
+    #[serde(
+        serialize_with = "serialize_jobs",
+        deserialize_with = "deserialize_jobs"
+    )]
+    jobs: Arc<Mutex<Vec<Arc<Job>>>>,
+    hostname: Option<String>,
+    #[serde(
+        serialize_with = "serialize_platform",
+        deserialize_with = "deserialize_platform"
+    )]
+    platform: Option<AgentPlatform>,
+    last_seen_at: Option<DateTime<Utc>>,
+    created_at: Option<DateTime<Utc>>,
+
+    available_tools: Option<Vec<Tool>>,
+
+    #[serde(skip)]
+    client: ApiClient,
 }
 
-// TODO: remove warning
-#[allow(dead_code)]
-impl Agent {
-    pub fn new(base_url: String, auth_token: String) -> Result<Agent, ClientError> {
-        let client = ApiClient::new(base_url, auth_token)?;
+fn serialize_jobs<S>(jobs: &Arc<Mutex<Vec<Arc<Job>>>>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let jobs = jobs.lock().map_err(serde::ser::Error::custom)?;
+    let mut seq = serializer.serialize_seq(Some(jobs.len()))?;
+    for job in jobs.iter() {
+        seq.serialize_element(&**job)?; // &Arc<Job> → &Job
+    }
+    seq.end()
+}
 
-        Ok(Agent {
-            auth_token: "".to_string(),
-            checksum: "".to_string(),
-            jobs: vec![],
-            client,
-        })
+type SharedJobs = Arc<Mutex<Vec<Arc<Job>>>>;
+fn deserialize_jobs<'de, D>(deserializer: D) -> Result<SharedJobs, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let jobs_vec = Vec::<Job>::deserialize(deserializer)?;
+    Ok(Arc::new(Mutex::new(
+        jobs_vec.into_iter().map(Arc::new).collect(),
+    )))
+}
+
+fn serialize_platform<S>(platform: &Option<AgentPlatform>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match platform {
+        Some(AgentPlatform::Linux) => serializer.serialize_some("linux"),
+        Some(AgentPlatform::MacOs) => serializer.serialize_some("macos"),
+        Some(AgentPlatform::Windows) => serializer.serialize_some("windows"),
+        None => serializer.serialize_none(),
+    }
+}
+
+fn deserialize_platform<'de, D>(deserializer: D) -> Result<Option<AgentPlatform>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::{self, Visitor};
+    use std::fmt;
+
+    struct PlatformVisitor;
+
+    impl<'de> Visitor<'de> for PlatformVisitor {
+        type Value = Option<AgentPlatform>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a platform string (linux, macos, windows) or null")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            match value.to_lowercase().as_str() {
+                "linux" => Ok(Some(AgentPlatform::Linux)),
+                "macos" | "mac" => Ok(Some(AgentPlatform::MacOs)),
+                "windows" | "win" => Ok(Some(AgentPlatform::Windows)),
+                _ => Err(de::Error::unknown_variant(
+                    value,
+                    &["linux", "macos", "windows"],
+                )),
+            }
+        }
+
+        fn visit_none<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_unit<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+    }
+
+    deserializer.deserialize_option(PlatformVisitor)
+}
+
+impl Agent {
+    pub async fn new(base_url: String, auth_token: String) -> Result<Agent, ClientError> {
+        let mut client = ApiClient::new(base_url, auth_token.clone())?;
+
+        let mut agent = Agent::get_by_id(&mut client, &auth_token).await?;
+        agent.platform = Agent::get_platform();
+        agent.hostname = Some(Agent::get_hostname());
+        agent.client = client;
+
+        Ok(agent)
+    }
+
+    #[allow(dead_code)]
+    pub fn available_tools(&self) -> &Option<Vec<Tool>> {
+        &self.available_tools
+    }
+
+    pub async fn register(&mut self) -> Result<(), ClientError> {
+        let uri = format!("/agents/{}", self.id.clone().unwrap());
+        self.last_seen_at = Some(Utc::now());
+
+        self.client.patch(&uri, None, &self).await?;
+
+        Ok(())
+    }
+
+    pub async fn get_by_id(client: &mut ApiClient, id: &str) -> Result<Agent, ClientError> {
+        let uri = format!("/agents/{}", id);
+        let res = client.get(&uri, None).await?;
+        let data = res.data.unwrap();
+        let agent: Agent = serde_json::from_str(&data).map_err(ClientError::JsonError)?;
+
+        Ok(agent)
     }
 
     pub async fn check_health(&self) -> Result<(), ClientError> {
@@ -43,6 +176,7 @@ impl Agent {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn fetch_tools(&self) -> Result<Vec<Tool>, ClientError> {
         let res = self.client.get("/tools", None).await?;
         let parsed: Vec<Tool> = serde_json::from_str(&res.data.unwrap()).unwrap();
@@ -51,27 +185,120 @@ impl Agent {
 
         Ok(parsed)
     }
-    //
-    fn fetch_jobs() {}
 
-    fn run_jobs() {}
+    pub async fn get_jobs(&mut self) -> Result<(), ClientError> {
+        let uri = format!("/agents/{}/jobs", self.id.clone().unwrap());
+        let res = self.client.get(&uri, None).await?;
+        let jobs: Vec<Job> = serde_json::from_str(&res.data.unwrap()).unwrap();
 
-    fn register() {
-        // TODO: make request to /register to fetch info from db
-        // (like deployment_id and checksum) and then perform local check
-        // of that checksum
+        if !jobs.is_empty() {
+            let mut guard = self.jobs.lock().unwrap();
+            guard.extend(jobs.into_iter().map(Arc::new));
+        }
+
+        Ok(())
     }
 
-    fn fetch_capabilities() {
-        // TODO: get list of cmds that will be run by an agent
-        // and check if they exist
+    pub async fn run_jobs(&self) -> Result<(), ClientError> {
+        let jobs = {
+            let guard = self.jobs.lock().unwrap();
+            guard.clone() // clone Vec<Arc<Job>>
+        };
+
+        let futures = jobs.into_iter().map(|job| {
+            tokio::task::spawn(async move {
+                match job.run() {
+                    Ok(output) => {
+                        job.set_output(output.clone());
+                        Ok(output)
+                    }
+                    Err(err) => Err(err),
+                }
+            })
+        });
+
+        let results = futures::future::join_all(futures).await;
+
+        for res in results {
+            match res {
+                Ok(Ok(output)) => debug!("Job output: {}", output),
+                Ok(Err(job_err)) => error!("Job error: {}", job_err),
+                Err(join_err) => error!("Task join error (panic/cancel): {}", join_err),
+            }
+        }
+
+        Ok(())
     }
 
-    fn submit_capabilities() {
-        // TODO: inform the backend which tools are available to an agent
+    async fn get_tools(&self) -> Result<Vec<Tool>, ClientError> {
+        let uri = "/tools";
+        let res = self.client.get(uri, None).await?;
+        let tools: Vec<Tool> = serde_json::from_str(&res.data.unwrap()).unwrap();
+
+        Ok(tools)
     }
 
-    fn submit_report() {
-        // TODO: send a report of a task like: agent_id, tool_id (NULL if tool not available), output
+    pub async fn get_available_tools(&self) -> Result<Vec<Tool>, ClientError> {
+        let mut available_tools: Vec<Tool> = self
+            .get_tools()
+            .await?
+            .into_iter()
+            .filter(|tool| tool.is_available())
+            .collect();
+
+        for tool in available_tools.iter_mut() {
+            if tool.version().is_none() {
+                tool.get_version();
+            }
+        }
+
+        Ok(available_tools)
+    }
+
+    pub async fn submit_capabilities(&mut self) -> Result<(), ClientError> {
+        self.available_tools = Some(self.get_available_tools().await?);
+        let uri = format!("/agents/{}", self.id.clone().unwrap());
+
+        debug!(
+            "submit_capabilities(available_tools) => {:?}",
+            &self.available_tools
+        );
+
+        self.client.patch(&uri, None, &self).await?;
+
+        Ok(())
+    }
+
+    pub async fn submit_report(&mut self) -> Result<(), ClientError> {
+        let jobs: Vec<Arc<Job>> = self
+            .jobs
+            .clone()
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|job| !job.was_submitted())
+            .cloned()
+            .collect();
+
+        for job in jobs {
+            let uri = format!("/jobs/{}", job.get_id());
+            self.client.patch(&uri, None, &*job).await?;
+            job.set_submitted(true);
+        }
+
+        Ok(())
+    }
+
+    fn get_hostname() -> String {
+        gethostname().to_string_lossy().into_owned()
+    }
+
+    fn get_platform() -> Option<AgentPlatform> {
+        match std::env::consts::OS {
+            "linux" => Some(AgentPlatform::Linux),
+            "macos" => Some(AgentPlatform::MacOs),
+            "windows" => Some(AgentPlatform::Windows),
+            _ => None, // Unknown OS
+        }
     }
 }
