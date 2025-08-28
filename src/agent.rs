@@ -202,17 +202,17 @@ impl Agent {
             guard.clone() // clone Vec<Arc<Job>> (increase ref instead of cloning whole struct)
         };
 
-        // TODO: improve job error handling
         let futures = jobs
             .into_iter()
-            .map(|job| tokio::task::spawn(async move { job.run().unwrap() }));
+            .map(|job| tokio::task::spawn(async move { job.run() }));
 
         let results = futures::future::join_all(futures).await;
 
         for res in results {
             match res {
-                Ok(output) => debug!("Job output: {}", output),
-                Err(e) => error!("Task join error: {}", e),
+                Ok(Ok(output)) => debug!("Job output: {}", output),
+                Ok(Err(job_err)) => error!("Job error: {}", job_err),
+                Err(join_err) => error!("Task join error (panic/cancel): {}", join_err),
             }
         }
 
