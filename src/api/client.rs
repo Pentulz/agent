@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::api::{ApiData, ApiError};
-use reqwest::{Body, Error, RequestBuilder, Response, header::HeaderMap};
+use reqwest::{Error, RequestBuilder, Response, header::HeaderMap};
 use serde::Serialize;
 use serde_json::Error as SerdeError;
 use spdlog::prelude::*;

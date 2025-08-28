@@ -15,7 +15,7 @@ mod api;
 mod job;
 mod tool;
 
-use crate::{agent::Agent, api::client::ClientError};
+use crate::agent::Agent;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -61,6 +61,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     debug!("Finished!");
 
     agent.run_jobs().await?;
+
+    debug!("Submitting job report...");
+    agent.submit_report().await?;
+    debug!("Finished!");
 
     let term = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term))?;

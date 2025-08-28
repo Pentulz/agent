@@ -43,9 +43,10 @@ pub struct Agent {
     last_seen_at: Option<DateTime<Utc>>,
     created_at: Option<DateTime<Utc>>,
 
+    available_tools: Option<Vec<Tool>>,
+
     #[serde(skip)]
     client: ApiClient,
-    available_tools: Option<Vec<Tool>>,
 }
 
 fn serialize_jobs<S>(jobs: &Arc<Mutex<Vec<Arc<Job>>>>, serializer: S) -> Result<S::Ok, S::Error>
@@ -206,12 +207,20 @@ impl Agent {
     pub async fn run_jobs(&self) -> Result<(), ClientError> {
         let jobs = {
             let guard = self.jobs.lock().unwrap();
-            guard.clone() // clone Vec<Arc<Job>> (increase ref instead of cloning whole struct)
+            guard.clone() // clone Vec<Arc<Job>>
         };
 
-        let futures = jobs
-            .into_iter()
-            .map(|job| tokio::task::spawn(async move { job.run() }));
+        let futures = jobs.into_iter().map(|job| {
+            tokio::task::spawn(async move {
+                match job.run() {
+                    Ok(output) => {
+                        job.set_output(output.clone());
+                        Ok(output)
+                    }
+                    Err(err) => Err(err),
+                }
+            })
+        });
 
         let results = futures::future::join_all(futures).await;
 
@@ -254,10 +263,24 @@ impl Agent {
         Ok(())
     }
 
-    #[allow(dead_code)]
-    fn submit_report() {
-        // TODO: send a report of a task like: agent_id, tool_id (NULL if tool not available), output
-        todo!("");
+    pub async fn submit_report(&mut self) -> Result<(), ClientError> {
+        let jobs: Vec<Arc<Job>> = self
+            .jobs
+            .clone()
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|job| !job.was_submitted())
+            .cloned()
+            .collect();
+
+        for job in jobs {
+            let uri = format!("/jobs/{}", job.get_id());
+            self.client.patch(&uri, None, &*job).await?;
+            job.set_submitted(true);
+        }
+
+        Ok(())
     }
 
     fn get_hostname() -> String {
