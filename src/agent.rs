@@ -3,7 +3,6 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use chrono::{DateTime, Utc};
-use reqwest::header::HeaderMap;
 use serde::Deserializer;
 use serde::Serializer;
 use serde::ser::SerializeSeq;
@@ -147,12 +146,18 @@ impl Agent {
 
     // TODO:
     #[allow(dead_code)]
-    pub async fn register(&self) -> Result<(), ClientError> {
-        todo!("fetch hostname, platform and check capabilities");
+    pub async fn register(&mut self) -> Result<(), ClientError> {
+        let uri = format!("/agents/{}", self.id.clone().unwrap());
+        self.last_seen_at = Some(Utc::now());
+
+        self.client.patch(&uri, None, &self).await?;
+
+        Ok(())
     }
 
     pub async fn get_by_id(client: &mut ApiClient, id: &str) -> Result<Agent, ClientError> {
-        let res = client.get(&format!("/agents/{}", id), None).await?;
+        let uri = format!("/agents/{}", id);
+        let res = client.get(&uri, None).await?;
         let data = res.data.unwrap();
         let parsed: Result<Agent, SerdeError> = serde_json::from_str(&data);
 
@@ -243,7 +248,6 @@ impl Agent {
     pub async fn submit_capabilities(&mut self) -> Result<(), ClientError> {
         self.available_tools = Some(self.get_available_tools().await?);
         let uri = format!("/agents/{}", self.id.clone().unwrap());
-        let body = serde_json::to_string(&self)?;
 
         self.client.patch(&uri, None, &self).await?;
 

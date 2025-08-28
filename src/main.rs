@@ -52,7 +52,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     debug!("Current Agent: {}", agent_json);
 
     // TODO: implement: fetch hostname and platform
-    // agent.register().await?;
+    debug!("Registring agent...");
+    agent.register().await?;
+    debug!("Finished!");
+
     debug!("Submitting submit_capabilities...");
     agent.submit_capabilities().await?;
     debug!("Finished!");
