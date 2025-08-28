@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use chrono::{DateTime, Utc};
+use reqwest::header::HeaderMap;
 use serde::Deserializer;
 use serde::Serializer;
 use serde::ser::SerializeSeq;
@@ -45,6 +46,7 @@ pub struct Agent {
 
     #[serde(skip)]
     client: ApiClient,
+    available_tools: Option<Vec<Tool>>,
 }
 
 fn serialize_jobs<S>(jobs: &Arc<Mutex<Vec<Arc<Job>>>>, serializer: S) -> Result<S::Ok, S::Error>
@@ -238,12 +240,12 @@ impl Agent {
         Ok(available_tools)
     }
 
-    pub async fn submit_capabilities(&self) -> Result<(), ClientError> {
-        let available_tools = self.get_available_tools().await?;
+    pub async fn submit_capabilities(&mut self) -> Result<(), ClientError> {
+        self.available_tools = Some(self.get_available_tools().await?);
+        let uri = format!("/agents/{}", self.id.clone().unwrap());
+        let body = serde_json::to_string(&self)?;
 
-        debug!("submiting capabilities: {:?}", &available_tools);
-
-        // TODO: post to submit capabilities
+        self.client.patch(&uri, None, &self).await?;
 
         Ok(())
     }

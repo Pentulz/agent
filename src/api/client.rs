@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::api::{ApiData, ApiError};
 use reqwest::{Body, Error, RequestBuilder, Response, header::HeaderMap};
+use serde::Serialize;
 use serde_json::Error as SerdeError;
 use spdlog::prelude::*;
 use thiserror::Error;
@@ -59,16 +60,26 @@ impl ApiClient {
 
     // TODO: remove warning
     #[allow(dead_code)]
-    pub async fn post(
+    pub async fn post<T: Serialize>(
         &self,
         uri: &str,
         headers: Option<HeaderMap>,
-        body: Body,
+        body: &T,
     ) -> Result<ApiData<String>, ClientError> {
         let url = format!("{}{}", self.base_url, uri);
-        let mut request = self.client.post(url);
+        let request = self.client.post(url).json(body);
 
-        request = request.body(body);
+        self.send(request, headers).await
+    }
+
+    pub async fn patch<T: Serialize>(
+        &self,
+        uri: &str,
+        headers: Option<HeaderMap>,
+        body: &T,
+    ) -> Result<ApiData<String>, ClientError> {
+        let url = format!("{}{}", self.base_url, uri);
+        let request = self.client.patch(url).json(body);
 
         self.send(request, headers).await
     }

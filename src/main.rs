@@ -15,7 +15,7 @@ mod api;
 mod job;
 mod tool;
 
-use crate::agent::Agent;
+use crate::{agent::Agent, api::client::ClientError};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -39,14 +39,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let base_url = args.api_url;
     let token = args.auth_token.to_string();
 
-    let mut agent = Agent::new(base_url, token).await?;
+    let mut agent = match Agent::new(base_url, token).await {
+        Ok(a) => a,
+        Err(error) => {
+            info!("Error: {}", error);
+            return Err(error.into()); // or just return Err(error) depending on your fn signature
+        }
+    };
+
     let agent_json = serde_json::to_string_pretty(&agent).unwrap();
 
     debug!("Current Agent: {}", agent_json);
 
     // TODO: implement: fetch hostname and platform
     // agent.register().await?;
+    debug!("Submitting submit_capabilities...");
     agent.submit_capabilities().await?;
+    debug!("Finished!");
 
     agent.run_jobs().await?;
 
