@@ -12,7 +12,6 @@ use spdlog::{debug, error};
 use crate::api::client::ClientError;
 use crate::job::Job;
 use crate::{api::ApiClient, tool::Tool};
-use serde_json::Error as SerdeError;
 
 use gethostname::gethostname;
 
@@ -145,8 +144,11 @@ impl Agent {
         Ok(agent)
     }
 
-    // TODO:
     #[allow(dead_code)]
+    pub fn available_tools(&self) -> &Option<Vec<Tool>> {
+        &self.available_tools
+    }
+
     pub async fn register(&mut self) -> Result<(), ClientError> {
         let uri = format!("/agents/{}", self.id.clone().unwrap());
         self.last_seen_at = Some(Utc::now());
@@ -160,16 +162,9 @@ impl Agent {
         let uri = format!("/agents/{}", id);
         let res = client.get(&uri, None).await?;
         let data = res.data.unwrap();
-        let parsed: Result<Agent, SerdeError> = serde_json::from_str(&data);
+        let agent: Agent = serde_json::from_str(&data).map_err(ClientError::JsonError)?;
 
-        match parsed {
-            Ok(agent) => Ok(agent),
-
-            Err(e) => {
-                error!("JSON parse error: {}", e);
-                Err(ClientError::JsonError(e))
-            }
-        }
+        Ok(agent)
     }
 
     pub async fn check_health(&self) -> Result<(), ClientError> {
@@ -244,12 +239,18 @@ impl Agent {
     }
 
     pub async fn get_available_tools(&self) -> Result<Vec<Tool>, ClientError> {
-        let available_tools: Vec<Tool> = self
+        let mut available_tools: Vec<Tool> = self
             .get_tools()
             .await?
             .into_iter()
             .filter(|tool| tool.is_available())
             .collect();
+
+        for tool in available_tools.iter_mut() {
+            if tool.version().is_none() {
+                tool.get_version();
+            }
+        }
 
         Ok(available_tools)
     }
@@ -257,6 +258,11 @@ impl Agent {
     pub async fn submit_capabilities(&mut self) -> Result<(), ClientError> {
         self.available_tools = Some(self.get_available_tools().await?);
         let uri = format!("/agents/{}", self.id.clone().unwrap());
+
+        debug!(
+            "submit_capabilities(available_tools) => {:?}",
+            &self.available_tools
+        );
 
         self.client.patch(&uri, None, &self).await?;
 

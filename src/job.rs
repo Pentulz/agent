@@ -11,7 +11,6 @@ use chrono::{DateTime, Duration, Utc};
 
 use crate::tool::Tool;
 
-// #[derive(Serialize, Deserialize, Clone)]
 #[derive(Clone)]
 pub struct Job {
     id: String,
@@ -26,6 +25,7 @@ pub struct Job {
 }
 
 impl Job {
+    #[allow(dead_code)]
     pub fn new(cmd: String, args: Vec<String>, timeout: Duration) -> Job {
         Job {
             id: "".to_string(),

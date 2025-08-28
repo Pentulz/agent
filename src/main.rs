@@ -43,7 +43,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         Ok(a) => a,
         Err(error) => {
             info!("Error: {}", error);
-            return Err(error.into()); // or just return Err(error) depending on your fn signature
+            return Err(error.into());
         }
     };
 
@@ -51,7 +51,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     debug!("Current Agent: {}", agent_json);
 
-    // TODO: implement: fetch hostname and platform
     debug!("Registring agent...");
     agent.register().await?;
     debug!("Finished!");
