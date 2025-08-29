@@ -333,10 +333,11 @@ mod tests {
         let agent = make_agent();
         let jobs = make_jobs();
 
-        let mut guard = agent.jobs.lock().unwrap();
-        *guard = jobs;
         // Prevent deadlock by the agent.run_jobs() function
-        drop(guard);
+        {
+            let mut guard = agent.jobs.lock().unwrap();
+            *guard = jobs;
+        }
 
         // When
         let _result = agent.run_jobs().await;

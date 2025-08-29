@@ -26,6 +26,8 @@ pub struct Job {
 }
 
 impl Job {
+    // used by unit tests
+    #[allow(dead_code)]
     pub fn new(name: String, cmd: String, args: Vec<String>) -> Self {
         Job {
             id: Uuid::new_v4().to_string(),
@@ -70,6 +72,8 @@ impl Job {
         *completed_guard = Some(Utc::now());
     }
 
+    // used by unit tests
+    #[allow(dead_code)]
     pub fn is_completed(&self) -> bool {
         self.completed_at.lock().unwrap().is_some() && self.result.lock().unwrap().is_some()
     }
