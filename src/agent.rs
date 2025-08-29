@@ -272,11 +272,7 @@ impl Agent {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use std::{
-        sync::{Arc, Mutex},
-        thread::sleep,
-        time::Duration,
-    };
+    use std::sync::{Arc, Mutex};
     use uuid::Uuid;
 
     fn make_agent() -> Agent {
