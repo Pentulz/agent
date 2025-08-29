@@ -160,7 +160,7 @@ impl Agent {
                         job.set_result(report.clone());
                         job.set_completed();
 
-                        Err(err)
+                        Err(format!("{}: {}", job.get_action(), err))
                     }
                 }
             })
@@ -265,5 +265,90 @@ impl Agent {
             "windows" => Some(AgentPlatform::Windows),
             _ => None, // Unknown OS
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+    use std::{
+        sync::{Arc, Mutex},
+        thread::sleep,
+        time::Duration,
+    };
+    use uuid::Uuid;
+
+    fn make_agent() -> Agent {
+        Agent {
+            id: Some(Uuid::new_v4()),
+            token: "token".to_string(),
+            jobs: Arc::new(Mutex::new(vec![])),
+            hostname: None,
+            description: Some("Test agent".to_string()),
+            platform: None,
+            last_seen_at: None,
+            created_at: Some(Utc::now()),
+            available_tools: Some(vec![]),
+            client: ApiClient::new("http://fake.url.com".to_string(), "fake_token".to_string())
+                .unwrap(),
+        }
+    }
+
+    fn make_jobs() -> Vec<Arc<Job>> {
+        vec![
+            Arc::new(Job::new(
+                "echo_hello".to_string(),
+                "echo".to_string(),
+                ["Hello, world!".to_string()].to_vec(),
+            )),
+            Arc::new(Job::new(
+                "sleep_1".to_string(),
+                "sleep".to_string(),
+                ["1".to_string()].to_vec(),
+            )),
+        ]
+    }
+
+    #[tokio::test]
+    async fn test_get_hostname() {
+        let hostname = Agent::get_hostname();
+        assert!(!hostname.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_platform() {
+        let platform = Agent::get_platform();
+
+        assert!(platform.is_some());
+        assert!(matches!(
+            platform,
+            Some(AgentPlatform::Linux) | Some(AgentPlatform::MacOS) | Some(AgentPlatform::Windows)
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_submit_jobs() {
+        // Given
+        let agent = make_agent();
+        let jobs = make_jobs();
+
+        let mut guard = agent.jobs.lock().unwrap();
+        *guard = jobs;
+        // Prevent deadlock by the agent.run_jobs() function
+        drop(guard);
+
+        // When
+        let _result = agent.run_jobs().await;
+
+        // Then
+        let any_incompleted_job = agent
+            .jobs
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|job| !job.is_completed());
+
+        assert!(!any_incompleted_job);
     }
 }

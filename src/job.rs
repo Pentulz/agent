@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use chrono::{DateTime, Utc};
 
-use crate::{report::Report, tool::Tool};
+use crate::{action::Action, report::Report};
 
 #[derive(Clone)]
 pub struct Job {
@@ -19,13 +19,27 @@ pub struct Job {
     created_at: DateTime<Utc>,
     started_at: Option<DateTime<Utc>>,
     completed_at: Arc<Mutex<Option<DateTime<Utc>>>>,
-    action: Tool,
+    action: Action,
     agent_id: Uuid,
     result: Arc<Mutex<Option<Report>>>,
     submitted: Arc<AtomicBool>,
 }
 
 impl Job {
+    pub fn new(name: String, cmd: String, args: Vec<String>) -> Self {
+        Job {
+            id: Uuid::new_v4().to_string(),
+            name: name.to_string(),
+            created_at: Utc::now(),
+            started_at: None,
+            completed_at: Arc::new(Mutex::new(None)),
+            action: Action::new(cmd, args),
+            agent_id: Uuid::new_v4(),
+            result: Arc::new(Mutex::new(None)),
+            submitted: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        }
+    }
+
     pub fn was_submitted(&self) -> bool {
         self.submitted.load(Ordering::Relaxed)
     }
@@ -36,6 +50,10 @@ impl Job {
 
     pub fn run(&self) -> Result<String, std::io::Error> {
         self.action.run()
+    }
+
+    pub fn get_action(&self) -> &Action {
+        &self.action
     }
 
     pub fn get_id(&self) -> &str {
@@ -51,6 +69,10 @@ impl Job {
         let mut completed_guard = self.completed_at.lock().unwrap();
         *completed_guard = Some(Utc::now());
     }
+
+    pub fn is_completed(&self) -> bool {
+        self.completed_at.lock().unwrap().is_some() && self.result.lock().unwrap().is_some()
+    }
 }
 
 impl fmt::Debug for Job {
@@ -61,7 +83,7 @@ impl fmt::Debug for Job {
             .field("created_at", &self.created_at)
             .field("started_at", &self.started_at)
             .field("completed_at", &self.completed_at)
-            .field("tool", &self.action)
+            .field("action", &self.action)
             .field("agent_id", &self.agent_id)
             .field("results", &self.result)
             .finish()
@@ -89,7 +111,6 @@ impl Serialize for Job {
 
         s.serialize_field("action", &self.action)?;
         s.serialize_field("agent_id", &self.agent_id)?;
-        // serialize output as Option<String>
         let output_guard = self.result.lock().unwrap();
         s.serialize_field("results", &*output_guard)?;
         s.end()
@@ -108,7 +129,7 @@ impl<'de> Deserialize<'de> for Job {
             created_at: DateTime<Utc>,
             started_at: Option<DateTime<Utc>>,
             completed_at: Option<DateTime<Utc>>,
-            action: Tool,
+            action: Action,
             agent_id: Uuid,
             output: Option<Report>,
         }
