@@ -8,36 +8,35 @@ use serde::Serializer;
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Serialize};
 use spdlog::{debug, error};
+use uuid::Uuid;
 
 use crate::api::client::ClientError;
 use crate::job::Job;
+use crate::report::Report;
 use crate::{api::ApiClient, tool::Tool};
 
 use gethostname::gethostname;
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
 enum AgentPlatform {
     Linux,
-    MacOs,
+    MacOS,
     Windows,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Agent {
-    id: Option<String>,
-    #[serde(skip_serializing)]
+    id: Option<uuid::Uuid>,
     #[allow(dead_code)]
-    auth_token: String,
+    token: String,
     #[serde(
         serialize_with = "serialize_jobs",
         deserialize_with = "deserialize_jobs"
     )]
     jobs: Arc<Mutex<Vec<Arc<Job>>>>,
     hostname: Option<String>,
-    #[serde(
-        serialize_with = "serialize_platform",
-        deserialize_with = "deserialize_platform"
-    )]
+    description: Option<String>,
     platform: Option<AgentPlatform>,
     last_seen_at: Option<DateTime<Utc>>,
     created_at: Option<DateTime<Utc>>,
@@ -71,72 +70,11 @@ where
     )))
 }
 
-fn serialize_platform<S>(platform: &Option<AgentPlatform>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    match platform {
-        Some(AgentPlatform::Linux) => serializer.serialize_some("linux"),
-        Some(AgentPlatform::MacOs) => serializer.serialize_some("macos"),
-        Some(AgentPlatform::Windows) => serializer.serialize_some("windows"),
-        None => serializer.serialize_none(),
-    }
-}
-
-fn deserialize_platform<'de, D>(deserializer: D) -> Result<Option<AgentPlatform>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    use serde::de::{self, Visitor};
-    use std::fmt;
-
-    struct PlatformVisitor;
-
-    impl<'de> Visitor<'de> for PlatformVisitor {
-        type Value = Option<AgentPlatform>;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("a platform string (linux, macos, windows) or null")
-        }
-
-        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            match value.to_lowercase().as_str() {
-                "linux" => Ok(Some(AgentPlatform::Linux)),
-                "macos" | "mac" => Ok(Some(AgentPlatform::MacOs)),
-                "windows" | "win" => Ok(Some(AgentPlatform::Windows)),
-                _ => Err(de::Error::unknown_variant(
-                    value,
-                    &["linux", "macos", "windows"],
-                )),
-            }
-        }
-
-        fn visit_none<E>(self) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            Ok(None)
-        }
-
-        fn visit_unit<E>(self) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            Ok(None)
-        }
-    }
-
-    deserializer.deserialize_option(PlatformVisitor)
-}
-
 impl Agent {
-    pub async fn new(base_url: String, auth_token: String) -> Result<Agent, ClientError> {
-        let mut client = ApiClient::new(base_url, auth_token.clone())?;
+    pub async fn new(base_url: String, token: String) -> Result<Agent, ClientError> {
+        let mut client = ApiClient::new(base_url, token.clone())?;
 
-        let mut agent = Agent::get_by_id(&mut client, &auth_token).await?;
+        let mut agent = Agent::get_by_id(&mut client, &token).await?;
         agent.platform = Agent::get_platform();
         agent.hostname = Some(Agent::get_hostname());
         agent.client = client;
@@ -150,7 +88,7 @@ impl Agent {
     }
 
     pub async fn register(&mut self) -> Result<(), ClientError> {
-        let uri = format!("/agents/{}", self.id.clone().unwrap());
+        let uri = format!("/agents/{}", self.id.unwrap());
         self.last_seen_at = Some(Utc::now());
 
         self.client.patch(&uri, None, &self).await?;
@@ -162,7 +100,7 @@ impl Agent {
         let uri = format!("/agents/{}", id);
         let res = client.get(&uri, None).await?;
         let data = res.data.unwrap();
-        let agent: Agent = serde_json::from_str(&data).map_err(ClientError::JsonError)?;
+        let agent: Agent = serde_json::from_value(data).map_err(ClientError::ParseError)?;
 
         Ok(agent)
     }
@@ -176,20 +114,10 @@ impl Agent {
         }
     }
 
-    #[allow(dead_code)]
-    pub async fn fetch_tools(&self) -> Result<Vec<Tool>, ClientError> {
-        let res = self.client.get("/tools", None).await?;
-        let parsed: Vec<Tool> = serde_json::from_str(&res.data.unwrap()).unwrap();
-
-        debug!("data: {:?}", parsed);
-
-        Ok(parsed)
-    }
-
     pub async fn get_jobs(&mut self) -> Result<(), ClientError> {
-        let uri = format!("/agents/{}/jobs", self.id.clone().unwrap());
+        let uri = format!("/agents/{}/jobs", self.id.unwrap());
         let res = self.client.get(&uri, None).await?;
-        let jobs: Vec<Job> = serde_json::from_str(&res.data.unwrap()).unwrap();
+        let jobs: Vec<Job> = serde_json::from_value(res.data.unwrap()).unwrap();
 
         if !jobs.is_empty() {
             let mut guard = self.jobs.lock().unwrap();
@@ -202,17 +130,38 @@ impl Agent {
     pub async fn run_jobs(&self) -> Result<(), ClientError> {
         let jobs = {
             let guard = self.jobs.lock().unwrap();
-            guard.clone() // clone Vec<Arc<Job>>
+            guard.clone() // Vec<Arc<Job>>
         };
 
         let futures = jobs.into_iter().map(|job| {
             tokio::task::spawn(async move {
                 match job.run() {
                     Ok(output) => {
-                        job.set_output(output.clone());
-                        Ok(output)
+                        debug!("JOB finished, creating Report...");
+
+                        let report = Report {
+                            id: Uuid::new_v4(),
+                            results: serde_json::json!({ "output": output }),
+                            created_at: Utc::now(),
+                        };
+
+                        job.set_result(report.clone());
+                        job.set_completed();
+
+                        Ok(report)
                     }
-                    Err(err) => Err(err),
+                    Err(err) => {
+                        let report = Report {
+                            id: Uuid::new_v4(),
+                            results: serde_json::json!({ "error": err.to_string() }),
+                            created_at: Utc::now(),
+                        };
+
+                        job.set_result(report.clone());
+                        job.set_completed();
+
+                        Err(err)
+                    }
                 }
             })
         });
@@ -221,7 +170,7 @@ impl Agent {
 
         for res in results {
             match res {
-                Ok(Ok(output)) => debug!("Job output: {}", output),
+                Ok(Ok(report)) => debug!("Job report: {:?}", report),
                 Ok(Err(job_err)) => error!("Job error: {}", job_err),
                 Err(join_err) => error!("Task join error (panic/cancel): {}", join_err),
             }
@@ -233,9 +182,25 @@ impl Agent {
     async fn get_tools(&self) -> Result<Vec<Tool>, ClientError> {
         let uri = "/tools";
         let res = self.client.get(uri, None).await?;
-        let tools: Vec<Tool> = serde_json::from_str(&res.data.unwrap()).unwrap();
 
-        Ok(tools)
+        let data = res.data.ok_or(ClientError::MissingData)?;
+
+        // Make sure it's an array
+        let tools_array = match data {
+            serde_json::Value::Array(ref arr) => arr,
+            _ => return Ok(vec![]), // or Err if preferred
+        };
+
+        // Map each element's "attributes" to Tool
+        let tools: Result<Vec<Tool>, ClientError> = tools_array
+            .iter()
+            .map(|item| {
+                let attrs = item.get("attributes").ok_or(ClientError::MissingData)?; // or another custom error
+                serde_json::from_value(attrs.clone()).map_err(ClientError::ParseError)
+            })
+            .collect();
+
+        tools
     }
 
     pub async fn get_available_tools(&self) -> Result<Vec<Tool>, ClientError> {
@@ -257,7 +222,7 @@ impl Agent {
 
     pub async fn submit_capabilities(&mut self) -> Result<(), ClientError> {
         self.available_tools = Some(self.get_available_tools().await?);
-        let uri = format!("/agents/{}", self.id.clone().unwrap());
+        let uri = format!("/agents/{}", self.id.unwrap());
 
         debug!(
             "submit_capabilities(available_tools) => {:?}",
@@ -296,7 +261,7 @@ impl Agent {
     fn get_platform() -> Option<AgentPlatform> {
         match std::env::consts::OS {
             "linux" => Some(AgentPlatform::Linux),
-            "macos" => Some(AgentPlatform::MacOs),
+            "macos" => Some(AgentPlatform::MacOS),
             "windows" => Some(AgentPlatform::Windows),
             _ => None, // Unknown OS
         }

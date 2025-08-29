@@ -6,39 +6,26 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
+use uuid::Uuid;
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 
-use crate::tool::Tool;
+use crate::{report::Report, tool::Tool};
 
 #[derive(Clone)]
 pub struct Job {
     id: String,
     name: String,
-    started_at: DateTime<Utc>,
-    ended_at: DateTime<Utc>,
-    timeout: Duration,
-    tool: Tool,
-    agent_id: u32,
-    output: Arc<Mutex<Option<String>>>,
+    created_at: DateTime<Utc>,
+    started_at: Option<DateTime<Utc>>,
+    completed_at: Arc<Mutex<Option<DateTime<Utc>>>>,
+    action: Tool,
+    agent_id: Uuid,
+    result: Arc<Mutex<Option<Report>>>,
     submitted: Arc<AtomicBool>,
 }
 
 impl Job {
-    #[allow(dead_code)]
-    pub fn new(cmd: String, args: Vec<String>, timeout: Duration) -> Job {
-        Job {
-            id: "".to_string(),
-            name: "".to_string(),
-            started_at: Utc::now(),
-            ended_at: Utc::now(),
-            timeout,
-            tool: Tool::new(cmd, args),
-            agent_id: 0,
-            output: Arc::new(Mutex::new(None)),
-            submitted: Arc::new(AtomicBool::new(false)),
-        }
-    }
     pub fn was_submitted(&self) -> bool {
         self.submitted.load(Ordering::Relaxed)
     }
@@ -48,16 +35,21 @@ impl Job {
     }
 
     pub fn run(&self) -> Result<String, std::io::Error> {
-        self.tool.run()
+        self.action.run()
     }
 
     pub fn get_id(&self) -> &str {
         &self.id
     }
 
-    pub fn set_output(&self, val: String) {
-        let mut guard = self.output.lock().unwrap();
+    pub fn set_result(&self, val: Report) {
+        let mut guard = self.result.lock().unwrap();
         *guard = Some(val);
+    }
+
+    pub fn set_completed(&self) {
+        let mut completed_guard = self.completed_at.lock().unwrap();
+        *completed_guard = Some(Utc::now());
     }
 }
 
@@ -66,12 +58,12 @@ impl fmt::Debug for Job {
         f.debug_struct("Job")
             .field("id", &self.id)
             .field("name", &self.name)
+            .field("created_at", &self.created_at)
             .field("started_at", &self.started_at)
-            .field("ended_at", &self.ended_at)
-            .field("timeout", &format!("{}s", self.timeout.num_seconds()))
-            .field("tool", &self.tool)
+            .field("completed_at", &self.completed_at)
+            .field("tool", &self.action)
             .field("agent_id", &self.agent_id)
-            .field("output", &self.output)
+            .field("results", &self.result)
             .finish()
     }
 }
@@ -86,14 +78,20 @@ impl Serialize for Job {
         let mut s = serializer.serialize_struct("Job", 8)?;
         s.serialize_field("id", &self.id)?;
         s.serialize_field("name", &self.name)?;
-        s.serialize_field("started_at", &self.started_at)?;
-        s.serialize_field("ended_at", &self.ended_at)?;
-        s.serialize_field("timeout", &self.timeout.num_seconds())?;
-        s.serialize_field("tool", &self.tool)?;
+        s.serialize_field("created_at", &self.created_at.to_rfc3339())?;
+        s.serialize_field("started_at", &self.started_at.map(|t| t.to_rfc3339()))?;
+
+        let completed_at_guard = self.completed_at.lock().unwrap();
+        s.serialize_field(
+            "completed_at",
+            &completed_at_guard.as_ref().map(|t| t.to_rfc3339()),
+        )?;
+
+        s.serialize_field("action", &self.action)?;
         s.serialize_field("agent_id", &self.agent_id)?;
         // serialize output as Option<String>
-        let output_guard = self.output.lock().unwrap();
-        s.serialize_field("output", &*output_guard)?;
+        let output_guard = self.result.lock().unwrap();
+        s.serialize_field("results", &*output_guard)?;
         s.end()
     }
 }
@@ -107,24 +105,24 @@ impl<'de> Deserialize<'de> for Job {
         struct JobHelper {
             id: String,
             name: String,
-            started_at: DateTime<Utc>,
-            ended_at: DateTime<Utc>,
-            timeout: i64,
-            tool: Tool,
-            agent_id: u32,
-            output: Option<String>,
+            created_at: DateTime<Utc>,
+            started_at: Option<DateTime<Utc>>,
+            completed_at: Option<DateTime<Utc>>,
+            action: Tool,
+            agent_id: Uuid,
+            output: Option<Report>,
         }
 
         let helper = JobHelper::deserialize(deserializer)?;
         Ok(Job {
             id: helper.id,
             name: helper.name,
+            created_at: helper.created_at,
             started_at: helper.started_at,
-            ended_at: helper.ended_at,
-            timeout: Duration::seconds(helper.timeout),
-            tool: helper.tool,
+            completed_at: Arc::new(Mutex::new(helper.completed_at)),
+            action: helper.action,
             agent_id: helper.agent_id,
-            output: Arc::new(Mutex::new(helper.output)),
+            result: Arc::new(Mutex::new(helper.output)),
             submitted: Arc::new(AtomicBool::new(false)),
         })
     }
