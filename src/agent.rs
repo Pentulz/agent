@@ -179,41 +179,6 @@ impl Agent {
         Ok(())
     }
 
-    // pub async fn run_jobs(&self) -> Result<(), ClientError> {
-    //     let jobs = {
-    //         let guard = self.jobs.lock().unwrap();
-    //         guard.clone() // clone Vec<Arc<Job>>
-    //     };
-    //
-    //     let futures = jobs.into_iter().map(|job| {
-    //         tokio::task::spawn(async move {
-    //             match job.run() {
-    //                 Ok(output) => {
-    //                     debug!(
-    //                         "JOBBBBBBBBBBB=> finished JOBBBBBB, SETTING OUTPUT AND COMPLETED_AT!!!!"
-    //                     );
-    //                     job.set_output(output.clone());
-    //                     job.set_completed();
-    //                     Ok(output)
-    //                 }
-    //                 Err(err) => Err(err),
-    //             }
-    //         })
-    //     });
-    //
-    //     let results = futures::future::join_all(futures).await;
-    //
-    //     for res in results {
-    //         match res {
-    //             Ok(Ok(output)) => debug!("Job output: {}", output),
-    //             Ok(Err(job_err)) => error!("Job error: {}", job_err),
-    //             Err(join_err) => error!("Task join error (panic/cancel): {}", join_err),
-    //         }
-    //     }
-    //
-    //     Ok(())
-    // }
-
     async fn get_tools(&self) -> Result<Vec<Tool>, ClientError> {
         let uri = "/tools";
         let res = self.client.get(uri, None).await?;

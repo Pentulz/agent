@@ -78,13 +78,10 @@ impl Serialize for Job {
         let mut s = serializer.serialize_struct("Job", 8)?;
         s.serialize_field("id", &self.id)?;
         s.serialize_field("name", &self.name)?;
-        // s.serialize_field("created_at", &self.created_at)?;
-        // s.serialize_field("started_at", &self.started_at)?;
         s.serialize_field("created_at", &self.created_at.to_rfc3339())?;
         s.serialize_field("started_at", &self.started_at.map(|t| t.to_rfc3339()))?;
 
         let completed_at_guard = self.completed_at.lock().unwrap();
-        // s.serialize_field("completed_at", &*completed_at_guard.)?;
         s.serialize_field(
             "completed_at",
             &completed_at_guard.as_ref().map(|t| t.to_rfc3339()),
