@@ -10,22 +10,17 @@ pub struct ApiError {
     )]
     code: StatusCode,
     title: String,
-    detail: String,
 }
 
 impl std::fmt::Debug for ApiError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Code: {:?}, Title: {:?}, Detail: {}",
-            &self.code, &self.title, &self.detail
-        )
+        write!(f, "Code: {:?}, Title: {:?}", &self.code, &self.title)
     }
 }
 
 impl fmt::Display for ApiError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}: {} => {}", &self.code, &self.title, &self.detail)
+        write!(f, "{:?}: {}", &self.code, &self.title)
     }
 }
 
@@ -34,12 +29,8 @@ impl std::error::Error for ApiError {}
 // TODO: remove warning
 #[allow(dead_code)]
 impl ApiError {
-    pub fn new(code: StatusCode, title: String, detail: String) -> Self {
-        ApiError {
-            code,
-            title,
-            detail,
-        }
+    pub fn new(code: StatusCode, title: String) -> Self {
+        ApiError { code, title }
     }
 
     pub fn from_json(json_str: &str) -> Result<Self, serde_json::Error> {

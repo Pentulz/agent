@@ -13,7 +13,7 @@ pub struct ApiClient {
     base_url: String,
     // TODO: remove warning
     #[allow(dead_code)]
-    auth_token: String,
+    token: String,
     client: reqwest::Client,
 }
 
@@ -29,11 +29,14 @@ pub enum ClientError {
     ReqwestError(#[from] Error),
 
     #[error("json error")]
-    JsonError(#[from] SerdeError),
+    ParseError(#[from] SerdeError),
+
+    #[error("missing data in response")]
+    MissingData,
 }
 
 impl ApiClient {
-    pub fn new(base_url: String, auth_token: String) -> Result<Self, ClientError> {
+    pub fn new(base_url: String, token: String) -> Result<Self, ClientError> {
         let api_url = Url::parse(&base_url);
 
         if let Err(e) = api_url {
@@ -42,7 +45,7 @@ impl ApiClient {
 
         Ok(ApiClient {
             base_url,
-            auth_token,
+            token,
             client: reqwest::Client::new(),
         })
     }
@@ -51,7 +54,7 @@ impl ApiClient {
         &self,
         uri: &str,
         headers: Option<HeaderMap>,
-    ) -> Result<ApiData<String>, ClientError> {
+    ) -> Result<ApiData<serde_json::Value>, ClientError> {
         let url = format!("{}{}", self.base_url, uri);
         let request = self.client.get(url);
 
@@ -65,19 +68,19 @@ impl ApiClient {
         uri: &str,
         headers: Option<HeaderMap>,
         body: &T,
-    ) -> Result<ApiData<String>, ClientError> {
+    ) -> Result<ApiData<serde_json::Value>, ClientError> {
         let url = format!("{}{}", self.base_url, uri);
         let request = self.client.post(url).json(body);
 
         self.send(request, headers).await
     }
 
-    pub async fn patch<T: Serialize>(
+    pub async fn patch<T: Serialize + std::fmt::Debug>(
         &self,
         uri: &str,
         headers: Option<HeaderMap>,
         body: &T,
-    ) -> Result<ApiData<String>, ClientError> {
+    ) -> Result<ApiData<serde_json::Value>, ClientError> {
         let url = format!("{}{}", self.base_url, uri);
         let request = self.client.patch(url).json(body);
 
@@ -88,9 +91,7 @@ impl ApiClient {
         &self,
         mut request: RequestBuilder,
         headers: Option<HeaderMap>,
-    ) -> Result<ApiData<String>, ClientError> {
-        // TODO: add auth token
-
+    ) -> Result<ApiData<serde_json::Value>, ClientError> {
         if let Some(headers) = headers {
             request = request.headers(headers);
         }
@@ -99,23 +100,47 @@ impl ApiClient {
         self.handle_response(res).await
     }
 
-    async fn handle_response(&self, response: Response) -> Result<ApiData<String>, ClientError> {
+    async fn handle_response(
+        &self,
+        response: Response,
+    ) -> Result<ApiData<serde_json::Value>, ClientError> {
         let status = response.status();
         let message = response.text().await?;
-        let body: HashMap<String, serde_json::Value> = serde_json::from_str(&message).unwrap();
+        let body: HashMap<String, serde_json::Value> =
+            serde_json::from_str(&message).map_err(ClientError::ParseError)?;
 
         if status.is_client_error() || status.is_server_error() {
-            // TODO: maybe rename errors to error
+            let mut error_messages = Vec::new();
+            if let Some(errors) = body.get("errors").and_then(|v| v.as_array()) {
+                for err in errors {
+                    let detail = err
+                        .get("detail")
+                        .and_then(|d| d.as_str())
+                        .unwrap_or_default();
+                    error_messages.push(detail.to_string());
+                }
+            }
+            let combined_message = error_messages.join("; ");
             return Err(ClientError::ApiError(ApiError::new(
                 status,
-                body["errors"][0]["title"].to_string(),
-                body["errors"][0]["detail"].to_string(),
+                combined_message,
             )));
         }
 
-        let mut api_response: ApiData<String> = ApiData::new();
-        if status.is_success() {
-            api_response.data = Some(body["data"].to_string());
+        let mut api_response: ApiData<serde_json::Value> = ApiData::new();
+
+        if status.is_success()
+            && let Some(data) = body.get("data")
+        {
+            let value = match data {
+                serde_json::Value::Array(_) => data.clone(),
+                serde_json::Value::Object(obj) => obj
+                    .get("attributes")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Object(Default::default())),
+                _ => data.clone(),
+            };
+            api_response.data = Some(value);
         }
 
         Ok(api_response)
@@ -128,7 +153,7 @@ impl Default for ApiClient {
         // Provide dummy values just to satisfy the trait
         ApiClient {
             base_url: String::new(),
-            auth_token: String::new(),
+            token: String::new(),
             client: reqwest::Client::new(),
         }
     }

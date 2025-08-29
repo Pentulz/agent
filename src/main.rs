@@ -13,6 +13,7 @@ use tokio::time::sleep;
 mod agent;
 mod api;
 mod job;
+mod report;
 mod tool;
 
 use crate::agent::Agent;
@@ -21,7 +22,7 @@ use crate::agent::Agent;
 #[command(version, about, long_about = None)]
 struct Args {
     #[arg(long)]
-    auth_token: String,
+    token: String,
 
     #[arg(long)]
     api_url: String,
@@ -37,7 +38,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
     let base_url = args.api_url;
-    let token = args.auth_token.to_string();
+    let token = args.token.to_string();
 
     let mut agent = match Agent::new(base_url, token).await {
         Ok(a) => a,
@@ -60,7 +61,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     debug!("Finished!");
 
     agent.run_jobs().await?;
-
     debug!("Submitting job report...");
     agent.submit_report().await?;
     debug!("Finished!");
