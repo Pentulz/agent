@@ -20,6 +20,14 @@ impl Action {
 
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
+
+    pub fn get_cmd(&self) -> &str {
+        &self.cmd
+    }
+
+    pub fn get_args(&self) -> &Vec<String> {
+        &self.args
+    }
 }
 
 impl Display for Action {
