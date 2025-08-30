@@ -27,3 +27,43 @@ impl Display for Action {
         write!(f, "{} {}", self.cmd, self.args.join(" "))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io;
+
+    #[test]
+    fn test_action_new() {
+        let action = Action::new("echo".to_string(), vec!["hello".to_string()]);
+        assert_eq!(action.cmd, "echo");
+        assert_eq!(action.args, vec!["hello"]);
+    }
+
+    #[tokio::test]
+    async fn test_action_run_success() {
+        let action = Action::new("echo".to_string(), vec!["hello".to_string()]);
+        let output = action.run().unwrap();
+        assert!(output.contains("hello"));
+    }
+
+    #[tokio::test]
+    async fn test_action_run_failure() {
+        let action = Action::new("nonexistent_command".to_string(), vec![]);
+        let result = action.run();
+        assert!(result.is_err());
+        let err: io::Error = result.unwrap_err();
+        // On Unix, kind should be NotFound
+        assert_eq!(err.kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn test_action_display() {
+        let action = Action::new(
+            "echo".to_string(),
+            vec!["hello".to_string(), "world".to_string()],
+        );
+        let display_str = format!("{}", action);
+        assert_eq!(display_str, "echo hello world");
+    }
+}
