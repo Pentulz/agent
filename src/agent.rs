@@ -25,6 +25,21 @@ enum AgentPlatform {
     Windows,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum RunJobsError {
+    #[error("job failed: {0}")]
+    JobFailed(String),
+
+    #[error("one or more jobs failed")]
+    AtLeastOneFailed(Vec<RunJobsError>),
+
+    #[error("tokio join error: {0}")]
+    Join(#[from] tokio::task::JoinError),
+
+    #[error("mutex poisoned")]
+    Mutex,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Agent {
     id: Option<uuid::Uuid>,
@@ -127,9 +142,9 @@ impl Agent {
         Ok(())
     }
 
-    pub async fn run_jobs(&self) -> Result<(), ClientError> {
+    pub async fn run_jobs(&self) -> Result<(), RunJobsError> {
         let jobs = {
-            let guard = self.jobs.lock().unwrap();
+            let guard = self.jobs.lock().map_err(|_| RunJobsError::Mutex)?;
             guard.clone() // Vec<Arc<Job>>
         };
 
@@ -160,7 +175,11 @@ impl Agent {
                         job.set_result(report.clone());
                         job.set_completed();
 
-                        Err(format!("{}: {}", job.get_action(), err))
+                        Err(RunJobsError::JobFailed(format!(
+                            "{}: {}",
+                            job.get_action(),
+                            err
+                        )))
                     }
                 }
             })
@@ -168,15 +187,24 @@ impl Agent {
 
         let results = futures::future::join_all(futures).await;
 
+        let mut reports = Vec::new();
+        let mut errors = Vec::new();
+
         for res in results {
             match res {
-                Ok(Ok(report)) => debug!("Job report: {:?}", report),
-                Ok(Err(job_err)) => error!("Job error: {}", job_err),
-                Err(join_err) => error!("Task join error (panic/cancel): {}", join_err),
+                Ok(Ok(report)) => reports.push(report),
+                Ok(Err(job_err)) => errors.push(job_err),
+                Err(join_err) => errors.push(RunJobsError::Join(join_err)),
             }
         }
 
-        Ok(())
+        if errors.is_empty() {
+            Ok(())
+        } else if errors.len() == 1 {
+            Err(errors.remove(0))
+        } else {
+            Err(RunJobsError::AtLeastOneFailed(errors))
+        }
     }
 
     async fn get_tools(&self) -> Result<Vec<Tool>, ClientError> {
@@ -306,6 +334,21 @@ mod tests {
         ]
     }
 
+    fn make_jobs_that_crash() -> Vec<Arc<Job>> {
+        vec![
+            Arc::new(Job::new(
+                "echo_hello".to_string(),
+                "echo1234".to_string(),
+                ["Hello, world!".to_string()].to_vec(),
+            )),
+            Arc::new(Job::new(
+                "sleep_1".to_string(),
+                "sleep1234".to_string(),
+                ["1".to_string()].to_vec(),
+            )),
+        ]
+    }
+
     #[tokio::test]
     async fn test_get_hostname() {
         let hostname = Agent::get_hostname();
@@ -347,5 +390,34 @@ mod tests {
             .any(|job| !job.is_completed());
 
         assert!(!any_incompleted_job);
+    }
+
+    #[tokio::test]
+    async fn test_submit_jobs_that_crash() {
+        // Given
+        let agent = make_agent();
+        let jobs = make_jobs_that_crash();
+
+        // Prevent deadlock by the agent.run_jobs() function
+        {
+            let mut guard = agent.jobs.lock().unwrap();
+            *guard = jobs;
+        }
+
+        // When
+        let result = agent.run_jobs().await;
+
+        // Then
+        assert!(result.is_err());
+        if let Err(RunJobsError::AtLeastOneFailed(job_errors)) = result {
+            assert_eq!(job_errors.len(), 2);
+            assert!(
+                job_errors
+                    .iter()
+                    .any(|e| matches!(e, RunJobsError::JobFailed(_)))
+            );
+        } else {
+            panic!("Expected AtLeastOneFailed error variant");
+        }
     }
 }
