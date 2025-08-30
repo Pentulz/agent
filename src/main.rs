@@ -10,6 +10,7 @@ use std::{
 };
 use tokio::time::sleep;
 
+mod action;
 mod agent;
 mod api;
 mod job;

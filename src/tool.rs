@@ -6,17 +6,15 @@ use spdlog::debug;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Tool {
     cmd: String,
-    args: Vec<String>,
     version: Option<String>,
     version_arg: Option<String>,
 }
 
 impl Tool {
     #[allow(dead_code)]
-    pub fn new(cmd: String, args: Vec<String>) -> Tool {
+    pub fn new(cmd: String) -> Tool {
         let mut tool = Tool {
             cmd,
-            args,
             version: None,
             version_arg: None,
         };
@@ -26,12 +24,6 @@ impl Tool {
         debug!("Finished");
 
         tool
-    }
-
-    pub fn run(&self) -> Result<String, std::io::Error> {
-        let output = Command::new(&self.cmd).args(&self.args).output()?;
-
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
 
     pub fn get_version(&mut self) {
