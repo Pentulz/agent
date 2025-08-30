@@ -10,7 +10,7 @@ pub struct Action {
 }
 
 impl Action {
-    #[allow(dead_code)]
+    
     pub fn new(cmd: String, args: Vec<String>) -> Self {
         Action { cmd, args }
     }
