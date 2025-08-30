@@ -241,7 +241,7 @@ impl Agent {
 
         for tool in available_tools.iter_mut() {
             if tool.version().is_none() {
-                tool.get_version();
+                let _ = tool.get_version();
             }
         }
 
