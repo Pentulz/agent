@@ -21,10 +21,12 @@ impl Action {
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
 
+    #[allow(dead_code)]
     pub fn get_cmd(&self) -> &str {
         &self.cmd
     }
 
+    #[allow(dead_code)]
     pub fn get_args(&self) -> &Vec<String> {
         &self.args
     }

@@ -157,10 +157,7 @@ impl<'de> Deserialize<'de> for Job {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use std::{
-        str::FromStr,
-        sync::{Arc, Mutex},
-    };
+    use std::str::FromStr;
     use uuid::Uuid;
 
     // Simple fake Report for testing
