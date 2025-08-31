@@ -161,7 +161,7 @@ impl Agent {
                         };
 
                         job.set_result(report.clone());
-                        job.set_completed();
+                        job.set_completed_at();
 
                         Ok(report)
                     }
@@ -173,7 +173,7 @@ impl Agent {
                         };
 
                         job.set_result(report.clone());
-                        job.set_completed();
+                        job.set_completed_at();
 
                         Err(RunJobsError::JobFailed(format!(
                             "{}: {}",
