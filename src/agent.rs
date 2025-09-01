@@ -50,6 +50,7 @@ pub struct Agent {
         deserialize_with = "deserialize_jobs"
     )]
     jobs: Arc<Mutex<Vec<Arc<Job>>>>,
+    name: String,
     hostname: Option<String>,
     description: Option<String>,
     platform: Option<AgentPlatform>,
@@ -308,6 +309,7 @@ mod tests {
             id: Some(Uuid::new_v4()),
             token: "token".to_string(),
             jobs: Arc::new(Mutex::new(vec![])),
+            name: "myname".to_string(),
             hostname: None,
             description: Some("Test agent".to_string()),
             platform: None,

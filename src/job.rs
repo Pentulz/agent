@@ -16,6 +16,7 @@ use crate::{action::Action, report::Report};
 pub struct Job {
     id: Uuid,
     name: String,
+    description: Option<String>,
     created_at: DateTime<Utc>,
     started_at: Option<DateTime<Utc>>,
     completed_at: Arc<Mutex<Option<DateTime<Utc>>>>,
@@ -23,6 +24,7 @@ pub struct Job {
     agent_id: Uuid,
     result: Arc<Mutex<Option<Report>>>,
     submitted: Arc<AtomicBool>,
+    success: Arc<Mutex<Option<bool>>>,
 }
 
 impl Job {
@@ -32,6 +34,7 @@ impl Job {
         Job {
             id: Uuid::new_v4(),
             name: name.to_string(),
+            description: Some("".to_string()),
             created_at: Utc::now(),
             started_at: None,
             completed_at: Arc::new(Mutex::new(None)),
@@ -39,6 +42,34 @@ impl Job {
             agent_id: Uuid::new_v4(),
             result: Arc::new(Mutex::new(None)),
             submitted: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            success: Arc::new(Mutex::new(Some(false))),
+        }
+    }
+
+    fn new_internal(
+        id: Uuid,
+        name: String,
+        description: Option<String>,
+        created_at: DateTime<Utc>,
+        started_at: Option<DateTime<Utc>>,
+        completed_at: Option<DateTime<Utc>>,
+        action: Action,
+        agent_id: Uuid,
+        result: Option<Report>,
+        success: Option<bool>,
+    ) -> Self {
+        Job {
+            id,
+            name,
+            description,
+            created_at,
+            started_at,
+            completed_at: Arc::new(Mutex::new(completed_at)),
+            action,
+            agent_id,
+            result: Arc::new(Mutex::new(result)),
+            submitted: Arc::new(AtomicBool::new(false)),
+            success: Arc::new(Mutex::new(success)),
         }
     }
 
@@ -84,12 +115,14 @@ impl fmt::Debug for Job {
         f.debug_struct("Job")
             .field("id", &self.id)
             .field("name", &self.name)
+            .field("description", &self.description)
             .field("created_at", &self.created_at)
             .field("started_at", &self.started_at)
             .field("completed_at", &self.completed_at)
             .field("action", &self.action)
             .field("agent_id", &self.agent_id)
             .field("results", &self.result)
+            .field("success", &self.success)
             .finish()
     }
 }
@@ -104,6 +137,7 @@ impl Serialize for Job {
         let mut s = serializer.serialize_struct("Job", 8)?;
         s.serialize_field("id", &self.id)?;
         s.serialize_field("name", &self.name)?;
+        s.serialize_field("description", &self.description)?;
         s.serialize_field("created_at", &self.created_at.to_rfc3339())?;
         s.serialize_field("started_at", &self.started_at.map(|t| t.to_rfc3339()))?;
 
@@ -117,6 +151,9 @@ impl Serialize for Job {
         s.serialize_field("agent_id", &self.agent_id)?;
         let output_guard = self.result.lock().unwrap();
         s.serialize_field("results", &*output_guard)?;
+
+        let success_guard = self.success.lock().unwrap();
+        s.serialize_field("success", &*success_guard)?;
         s.end()
     }
 }
@@ -130,26 +167,29 @@ impl<'de> Deserialize<'de> for Job {
         struct JobHelper {
             id: Uuid,
             name: String,
+            description: Option<String>,
+            agent_id: Uuid,
             created_at: DateTime<Utc>,
             started_at: Option<DateTime<Utc>>,
             completed_at: Option<DateTime<Utc>>,
             action: Action,
-            agent_id: Uuid,
-            output: Option<Report>,
+            result: Option<Report>,
+            success: Option<bool>,
         }
 
         let helper = JobHelper::deserialize(deserializer)?;
-        Ok(Job {
-            id: helper.id,
-            name: helper.name,
-            created_at: helper.created_at,
-            started_at: helper.started_at,
-            completed_at: Arc::new(Mutex::new(helper.completed_at)),
-            action: helper.action,
-            agent_id: helper.agent_id,
-            result: Arc::new(Mutex::new(helper.output)),
-            submitted: Arc::new(AtomicBool::new(false)),
-        })
+        Ok(Job::new_internal(
+            helper.id,
+            helper.name,
+            helper.description,
+            helper.created_at,
+            helper.started_at,
+            helper.completed_at,
+            helper.action,
+            helper.agent_id,
+            helper.result,
+            helper.success,
+        ))
     }
 }
 
