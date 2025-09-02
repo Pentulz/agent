@@ -1,4 +1,5 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use spdlog::info;
 use std::{
     fmt,
     sync::{
@@ -102,6 +103,7 @@ impl Job {
             let mut guard = self.started_at.lock().unwrap();
             *guard = Some(Utc::now());
         }
+        info!("Running task: {:?}", &self.action);
         self.action.run()
     }
 

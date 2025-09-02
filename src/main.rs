@@ -54,31 +54,36 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     debug!("Current Agent: {}", agent_json);
 
-    debug!("Registring agent...");
+    info!("Registring agent...");
     agent.register().await?;
-    debug!("Finished!");
+    info!("Finished!");
 
-    debug!("Submitting submit_capabilities...");
+    info!("Submitting submit_capabilities...");
     agent.submit_capabilities().await?;
-    debug!("Finished!");
+    info!("Finished!");
 
     // TODO: handle errors not related to JobFailed
     let _ = agent.run_jobs().await;
-    debug!("Submitting job report...");
+    info!("Submitting job report...");
     agent.submit_report().await?;
-    debug!("Finished!");
+    info!("Finished!");
+
     let term = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term))?;
     while !term.load(Ordering::Relaxed) {
         agent.check_health().await?;
 
-        debug!("Fetching jobs...");
+        info!("Fetching jobs...");
         agent.get_jobs().await?;
-        debug!("Finished");
+        info!("Finished");
 
-        debug!("Running jobs...");
+        info!("Running jobs...");
         agent.run_jobs().await?;
-        debug!("Finished");
+        info!("Finished");
+
+        info!("Submitting job report...");
+        agent.submit_report().await?;
+        info!("Finished!");
 
         sleep(Duration::from_secs(args.refresh_timeout)).await;
     }

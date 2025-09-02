@@ -137,6 +137,18 @@ impl Agent {
         let data = res.data.unwrap();
         let agent: Agent = serde_json::from_value(data).map_err(ClientError::ParseError)?;
 
+        // jobs from /agents/<id> might already be competed
+        {
+            debug!("FILTERING JOBS OF AGENT ==> {}", agent.id.unwrap());
+            let mut guard = agent.jobs.lock().unwrap();
+            let filtered: Vec<Arc<Job>> = guard
+                .iter()
+                .filter(|job| job.get_started_at().is_none() && job.get_completed_at().is_none())
+                .cloned()
+                .collect();
+            *guard = filtered;
+        }
+
         Ok(agent)
     }
 
@@ -165,7 +177,11 @@ impl Agent {
     pub async fn run_jobs(&self) -> Result<(), RunJobsError> {
         let jobs = {
             let guard = self.jobs.lock().map_err(|_| RunJobsError::Mutex)?;
-            guard.clone() // Vec<Arc<Job>>
+            guard
+                .iter()
+                .filter(|job| job.get_started_at().is_none() && job.get_completed_at().is_none())
+                .cloned()
+                .collect::<Vec<_>>() // only fresh jobs
         };
 
         let futures = jobs.into_iter().map(|job| {
@@ -173,18 +189,20 @@ impl Agent {
                 match job.run() {
                     Ok(output) => {
                         debug!("Job {} finished, creating Report...", job.get_id());
-
+                        debug!(
+                            "Job {} output => {}<===",
+                            job.get_id(),
+                            &job.get_result_as_string().unwrap_or_default()
+                        );
                         job.set_result(output.clone());
                         job.set_completed_at();
                         job.set_success(true);
-
                         Ok(output)
                     }
                     Err(err) => {
                         job.set_result(err.to_string());
                         job.set_completed_at();
                         job.set_success(false);
-
                         Err(RunJobsError::JobFailed(format!(
                             "{}: {}",
                             job.get_action(),
@@ -196,22 +214,21 @@ impl Agent {
         });
 
         let results = futures::future::join_all(futures).await;
-
         let mut reports = Vec::new();
         let mut errors = Vec::new();
 
         for res in results {
             match res {
                 Ok(Ok(report)) => {
-                    debug!("OK(OK(report) => pushing report");
+                    debug!("OK(OK(report)) => pushing report");
                     reports.push(report);
                 }
                 Ok(Err(job_err)) => {
-                    debug!("OK(Err(job_err) => pushing errors");
+                    debug!("OK(Err(job_err)) => pushing errors");
                     errors.push(job_err);
                 }
                 Err(join_err) => {
-                    debug!("Err(join_err) => join error");
+                    debug!("Err(join_err)) => join error");
                     errors.push(RunJobsError::Join(join_err));
                 }
             }
@@ -227,6 +244,7 @@ impl Agent {
     }
 
     async fn get_tools(&self) -> Result<Vec<Tool>, ClientError> {
+        debug!("Getting tools...");
         let uri = "/tools";
         let res = self.client.get(uri, None).await?;
 
@@ -241,10 +259,7 @@ impl Agent {
         // Map each element's "attributes" to Tool
         let tools: Result<Vec<Tool>, ClientError> = tools_array
             .iter()
-            .map(|item| {
-                let attrs = item.get("attributes").ok_or(ClientError::MissingData)?; // or another custom error
-                serde_json::from_value(attrs.clone()).map_err(ClientError::ParseError)
-            })
+            .map(|item| serde_json::from_value(item.clone()).map_err(ClientError::ParseError))
             .collect();
 
         tools
