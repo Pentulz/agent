@@ -137,8 +137,7 @@ impl ApiClient {
                     // Extract attributes from each element in the array
                     let extracted_attrs: Vec<serde_json::Value> = arr
                         .iter()
-                        .enumerate()
-                        .map(|(_index, item)| match item.get("attributes") {
+                        .map(|item| match item.get("attributes") {
                             Some(attrs) => attrs.clone(),
                             None => item.clone(),
                         })

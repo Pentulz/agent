@@ -103,7 +103,7 @@ impl Job {
             let mut guard = self.started_at.lock().unwrap();
             *guard = Some(Utc::now());
         }
-        info!("Running task: {:?}", &self.action);
+        info!("Running task: {}", &self.action);
         self.action.run()
     }
 
