@@ -8,21 +8,25 @@ use serde::Serializer;
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Serialize};
 use spdlog::{debug, error};
-use uuid::Uuid;
 
 use crate::api::client::ClientError;
 use crate::job::Job;
-use crate::report::Report;
+use crate::job::JobPatch;
 use crate::{api::ApiClient, tool::Tool};
 
 use gethostname::gethostname;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "UPPERCASE")]
 enum AgentPlatform {
     Linux,
     MacOS,
     Windows,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AgentCapabilities {
+    available_tools: Option<Vec<Tool>>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -38,6 +42,14 @@ pub enum RunJobsError {
 
     #[error("mutex poisoned")]
     Mutex,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AgentRegister {
+    platform: Option<AgentPlatform>,
+    hostname: Option<String>,
+    last_seen_at: Option<DateTime<Utc>>,
+    available_tools: Option<Vec<Tool>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -107,7 +119,14 @@ impl Agent {
         let uri = format!("/agents/{}", self.id.unwrap());
         self.last_seen_at = Some(Utc::now());
 
-        self.client.patch(&uri, None, &self).await?;
+        let agent = AgentRegister {
+            hostname: self.hostname.clone(),
+            platform: self.platform.clone(),
+            last_seen_at: self.last_seen_at,
+            available_tools: self.available_tools.clone(),
+        };
+
+        self.client.patch(&uri, None, &agent).await?;
 
         Ok(())
     }
@@ -153,28 +172,18 @@ impl Agent {
             tokio::task::spawn(async move {
                 match job.run() {
                     Ok(output) => {
-                        debug!("JOB finished, creating Report...");
+                        debug!("Job {} finished, creating Report...", job.get_id());
 
-                        let report = Report {
-                            id: Uuid::new_v4(),
-                            results: serde_json::json!({ "output": output }),
-                            created_at: Utc::now(),
-                        };
-
-                        job.set_result(report.clone());
+                        job.set_result(output.clone());
                         job.set_completed_at();
+                        job.set_sucess(true);
 
-                        Ok(report)
+                        Ok(output)
                     }
                     Err(err) => {
-                        let report = Report {
-                            id: Uuid::new_v4(),
-                            results: serde_json::json!({ "error": err.to_string() }),
-                            created_at: Utc::now(),
-                        };
-
-                        job.set_result(report.clone());
+                        job.set_result(err.to_string());
                         job.set_completed_at();
+                        job.set_sucess(false);
 
                         Err(RunJobsError::JobFailed(format!(
                             "{}: {}",
@@ -193,9 +202,18 @@ impl Agent {
 
         for res in results {
             match res {
-                Ok(Ok(report)) => reports.push(report),
-                Ok(Err(job_err)) => errors.push(job_err),
-                Err(join_err) => errors.push(RunJobsError::Join(join_err)),
+                Ok(Ok(report)) => {
+                    debug!("OK(OK(report) => pushing report");
+                    reports.push(report);
+                }
+                Ok(Err(job_err)) => {
+                    debug!("OK(Err(job_err) => pushing errors");
+                    errors.push(job_err);
+                }
+                Err(join_err) => {
+                    debug!("Err(join_err) => join error");
+                    errors.push(RunJobsError::Join(join_err));
+                }
             }
         }
 
@@ -253,12 +271,11 @@ impl Agent {
         self.available_tools = Some(self.get_available_tools().await?);
         let uri = format!("/agents/{}", self.id.unwrap());
 
-        debug!(
-            "submit_capabilities(available_tools) => {:?}",
-            &self.available_tools
-        );
+        let capabilities = AgentCapabilities {
+            available_tools: self.available_tools.clone(),
+        };
 
-        self.client.patch(&uri, None, &self).await?;
+        self.client.patch(&uri, None, &capabilities).await?;
 
         Ok(())
     }
@@ -276,7 +293,16 @@ impl Agent {
 
         for job in jobs {
             let uri = format!("/jobs/{}", job.get_id());
-            self.client.patch(&uri, None, &*job).await?;
+            job.set_submitted(true);
+
+            let patch = JobPatch {
+                started_at: job.get_started_at(),
+                completed_at: job.get_completed_at(),
+                results: job.get_result_as_string(),
+                success: Some(job.is_success()),
+            };
+
+            self.client.patch(&uri, None, &patch).await?;
             job.set_submitted(true);
         }
 
