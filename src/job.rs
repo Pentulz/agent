@@ -123,7 +123,7 @@ impl Job {
         *completed_guard = Some(Utc::now());
     }
 
-    pub fn set_sucess(&self, is_success: bool) {
+    pub fn set_success(&self, is_success: bool) {
         let mut guard = self.success.lock().unwrap();
         *guard = Some(is_success);
     }
@@ -141,7 +141,7 @@ impl Job {
     }
 
     pub fn is_success(&self) -> bool {
-        self.success.lock().unwrap().unwrap()
+        self.success.lock().unwrap().unwrap_or(false)
     }
 
     // used by unit tests
@@ -180,7 +180,7 @@ impl Serialize for Job {
         s.serialize_field("name", &self.name)?;
         s.serialize_field("description", &self.description)?;
         s.serialize_field("created_at", &self.created_at.to_rfc3339())?;
-        let started_at_guard = self.completed_at.lock().unwrap();
+        let started_at_guard = self.started_at.lock().unwrap();
         s.serialize_field(
             "started_at",
             &started_at_guard.as_ref().map(|t| t.to_rfc3339()),

@@ -176,14 +176,14 @@ impl Agent {
 
                         job.set_result(output.clone());
                         job.set_completed_at();
-                        job.set_sucess(true);
+                        job.set_success(true);
 
                         Ok(output)
                     }
                     Err(err) => {
                         job.set_result(err.to_string());
                         job.set_completed_at();
-                        job.set_sucess(false);
+                        job.set_success(false);
 
                         Err(RunJobsError::JobFailed(format!(
                             "{}: {}",
@@ -303,7 +303,6 @@ impl Agent {
             };
 
             self.client.patch(&uri, None, &patch).await?;
-            job.set_submitted(true);
         }
 
         Ok(())
