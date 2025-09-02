@@ -7,11 +7,17 @@ use spdlog::debug;
 pub struct Action {
     cmd: String,
     args: Vec<String>,
+    variant: String,
 }
 
 impl Action {
     pub fn new(cmd: String, args: Vec<String>) -> Self {
-        Action { cmd, args }
+        // Action { cmd, args }
+        Action {
+            cmd,
+            args,
+            variant: "".to_string(),
+        }
     }
 
     pub fn run(&self) -> Result<String, std::io::Error> {
