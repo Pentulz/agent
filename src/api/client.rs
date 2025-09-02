@@ -133,7 +133,17 @@ impl ApiClient {
             && let Some(data) = body.get("data")
         {
             let value = match data {
-                serde_json::Value::Array(_) => data.clone(),
+                serde_json::Value::Array(arr) => {
+                    // Extract attributes from each element in the array
+                    let extracted_attrs: Vec<serde_json::Value> = arr
+                        .iter()
+                        .map(|item| match item.get("attributes") {
+                            Some(attrs) => attrs.clone(),
+                            None => item.clone(),
+                        })
+                        .collect();
+                    serde_json::Value::Array(extracted_attrs)
+                }
                 serde_json::Value::Object(obj) => obj
                     .get("attributes")
                     .cloned()
