@@ -14,7 +14,6 @@ mod action;
 mod agent;
 mod api;
 mod job;
-mod report;
 mod tool;
 
 use crate::agent::Agent;
@@ -41,10 +40,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let base_url = args.api_url;
     let token = args.token.to_string();
 
+    debug!("Creating agent...");
+
     let mut agent = match Agent::new(base_url, token).await {
         Ok(a) => a,
         Err(error) => {
-            info!("Error: {}", error);
+            error!("Error: {}", error);
             return Err(error.into());
         }
     };
@@ -61,11 +62,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     agent.submit_capabilities().await?;
     debug!("Finished!");
 
-    agent.run_jobs().await?;
+    // TODO: handle errors not related to JobFailed
+    let _ = agent.run_jobs().await;
     debug!("Submitting job report...");
     agent.submit_report().await?;
     debug!("Finished!");
-
     let term = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term))?;
     while !term.load(Ordering::Relaxed) {
