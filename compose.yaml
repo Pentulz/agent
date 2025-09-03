@@ -2,4 +2,5 @@ services:
   agent:
     image: agent:latest
     build: .
-    command: "agent"
+    user: root
+    network_mode: "host"
