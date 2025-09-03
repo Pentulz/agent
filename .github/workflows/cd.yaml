@@ -1,13 +1,8 @@
 name: CD
-# Trigger on nightly schedule, manual dispatch, main branch push, and release creation
 on:
-  schedule:
-    - cron: "0 2 * * *" # Once a day at 02:00 UTC
-  workflow_dispatch: # allows manual triggering
-  push:
-    branches: ["main"]
   release:
-    types: [created] # Trigger when a new release is created
+    types: [created]
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -71,49 +66,7 @@ jobs:
           name: ${{ matrix.binary_name }}
           path: release/${{ matrix.binary_name }}
 
-  publish-nightly:
-    # Only run for nightly builds (schedule, workflow_dispatch, or main branch push)
-    if: github.event_name != 'release'
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: release_files/
-
-      - name: Generate nightly tag
-        run: |
-          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-          echo "RELEASE_TAG=nightly-$TIMESTAMP" >> $GITHUB_ENV
-
-      - name: Publish Nightly Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          name: "${{ env.RELEASE_TAG }}"
-          draft: false
-          prerelease: true
-          files: release_files/*/*
-          body: |
-            Automated nightly release built from commit ${{ github.sha }}
-
-            ## Changes
-            This release includes the latest changes from the main branch.
-
-            ## Binaries
-            - `agent-linux-x64`: Linux x86_64 binary
-            - `agent-linux-arm64`: Linux ARM64 binary  
-            - `agent-windows-x64.exe`: Windows x86_64 binary
-        env:
-          GITHUB_TOKEN: ${{ secrets.AUTH_TOKEN }}
-
   publish-release:
-    # Only run when triggered by release creation
-    if: github.event_name == 'release'
     needs: build
     runs-on: ubuntu-latest
     steps:

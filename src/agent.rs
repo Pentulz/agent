@@ -152,15 +152,6 @@ impl Agent {
         Ok(agent)
     }
 
-    pub async fn check_health(&self) -> Result<(), ClientError> {
-        let result = self.client.get("/health", None).await;
-
-        match result {
-            Ok(_api_data) => Ok(()),
-            Err(err) => Err(err),
-        }
-    }
-
     pub async fn get_jobs(&mut self) -> Result<(), ClientError> {
         let uri = format!("/agents/{}/jobs", self.id.unwrap());
         let res = self.client.get(&uri, None).await?;
