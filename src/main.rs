@@ -71,8 +71,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let term = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term))?;
     while !term.load(Ordering::Relaxed) {
-        agent.check_health().await?;
-
         info!("Fetching jobs...");
         agent.get_jobs().await?;
         info!("Finished");
