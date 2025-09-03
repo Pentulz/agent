@@ -1,4 +1,8 @@
-use std::{env, fmt::Display, fs, process::Command};
+use std::env;
+use std::fmt::Display;
+#[cfg(unix)]
+use std::fs;
+use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 use spdlog::{debug, error};
