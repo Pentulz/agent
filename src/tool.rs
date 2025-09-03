@@ -1,4 +1,8 @@
-use std::{env, fmt::Display, fs, process::Command};
+use std::env;
+use std::fmt::Display;
+#[cfg(unix)]
+use std::fs;
+use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 use spdlog::{debug, error};
@@ -64,21 +68,22 @@ impl Tool {
         if let Some(paths) = env::var_os("PATH") {
             for path in env::split_paths(&paths) {
                 let full_path = path.join(&self.cmd);
-                if full_path.exists()
-                    && let Ok(metadata) = fs::metadata(&full_path)
+
+                #[cfg(unix)]
                 {
-                    #[cfg(unix)]
-                    {
+                    if let Ok(metadata) = fs::metadata(&full_path) {
                         use std::os::unix::fs::PermissionsExt;
                         let mode = metadata.permissions().mode();
                         if mode & 0o111 != 0 {
                             return true; // has any execute bit
                         }
                     }
-                    #[cfg(windows)]
-                    {
-                        // On Windows, existence is usually enough, executability is handled by extensions
-                        return true;
+                }
+
+                #[cfg(windows)]
+                {
+                    if full_path.exists() {
+                        return true; // existence is usually enough on Windows
                     }
                 }
             }
