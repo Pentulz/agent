@@ -1,7 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use spdlog::info;
 use std::{
-    fmt,
+    fmt::{self, Display},
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -237,6 +237,12 @@ impl<'de> Deserialize<'de> for Job {
             helper.result,
             helper.success,
         ))
+    }
+}
+
+impl Display for Job {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {}", &self.id, &self.action)
     }
 }
 

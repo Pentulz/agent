@@ -7,6 +7,7 @@ use serde::Deserializer;
 use serde::Serializer;
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Serialize};
+use spdlog::info;
 use spdlog::{debug, error};
 
 use crate::api::client::ClientError;
@@ -27,6 +28,11 @@ enum AgentPlatform {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AgentCapabilities {
     available_tools: Option<Vec<Tool>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AgentPresence {
+    last_seen_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -115,7 +121,21 @@ impl Agent {
         &self.available_tools
     }
 
+    pub async fn announce_presence(&mut self) -> Result<(), ClientError> {
+        let uri = format!("/agents/{}", self.id.unwrap());
+        self.last_seen_at = Some(Utc::now());
+
+        let agent = AgentPresence {
+            last_seen_at: self.last_seen_at,
+        };
+
+        self.client.patch(&uri, None, &agent).await?;
+
+        Ok(())
+    }
+
     pub async fn register(&mut self) -> Result<(), ClientError> {
+        info!("Registring agent...");
         let uri = format!("/agents/{}", self.id.unwrap());
         self.last_seen_at = Some(Utc::now());
 
@@ -127,6 +147,7 @@ impl Agent {
         };
 
         self.client.patch(&uri, None, &agent).await?;
+        info!("Done");
 
         Ok(())
     }
@@ -153,6 +174,8 @@ impl Agent {
     }
 
     pub async fn get_jobs(&mut self) -> Result<(), ClientError> {
+        info!("Fetching jobs...");
+
         let uri = format!("/agents/{}/jobs", self.id.unwrap());
         let res = self.client.get(&uri, None).await?;
         let jobs: Vec<Job> = serde_json::from_value(res.data.unwrap()).unwrap();
@@ -161,6 +184,8 @@ impl Agent {
             let mut guard = self.jobs.lock().unwrap();
             guard.extend(jobs.into_iter().map(Arc::new));
         }
+
+        info!("Finished");
 
         Ok(())
     }
@@ -176,18 +201,15 @@ impl Agent {
         };
 
         let futures = jobs.into_iter().map(|job| {
+            info!("Running job: {}", &job);
             tokio::task::spawn(async move {
                 match job.run() {
                     Ok(output) => {
-                        debug!("Job {} finished, creating Report...", job.get_id());
-                        debug!(
-                            "Job {} output => {}<===",
-                            job.get_id(),
-                            &job.get_result_as_string().unwrap_or_default()
-                        );
+                        info!("Job {} finished, creating Report...", job.get_id());
                         job.set_result(output.clone());
                         job.set_completed_at();
                         job.set_success(true);
+
                         Ok(output)
                     }
                     Err(err) => {
@@ -195,7 +217,8 @@ impl Agent {
                         job.set_completed_at();
                         job.set_success(false);
                         Err(RunJobsError::JobFailed(format!(
-                            "{}: {}",
+                            "Job {} failed, {}: {}",
+                            &job,
                             job.get_action(),
                             err
                         )))
@@ -274,6 +297,7 @@ impl Agent {
     }
 
     pub async fn submit_capabilities(&mut self) -> Result<(), ClientError> {
+        info!("Submitting submit_capabilities...");
         self.available_tools = Some(self.get_available_tools().await?);
         let uri = format!("/agents/{}", self.id.unwrap());
 
@@ -282,6 +306,7 @@ impl Agent {
         };
 
         self.client.patch(&uri, None, &capabilities).await?;
+        info!("Done");
 
         Ok(())
     }
@@ -298,6 +323,8 @@ impl Agent {
             .collect();
 
         for job in jobs {
+            info!("Submitting job report...");
+
             let uri = format!("/jobs/{}", job.get_id());
             job.set_submitted(true);
 
@@ -309,6 +336,7 @@ impl Agent {
             };
 
             self.client.patch(&uri, None, &patch).await?;
+            info!("Finished!");
         }
 
         Ok(())
