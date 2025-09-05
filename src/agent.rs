@@ -7,6 +7,7 @@ use serde::Deserializer;
 use serde::Serializer;
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Serialize};
+use spdlog::info;
 use spdlog::{debug, error};
 
 use crate::api::client::ClientError;
@@ -29,6 +30,11 @@ pub struct AgentCapabilities {
     available_tools: Option<Vec<Tool>>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AgentPresence {
+    last_seen_at: Option<DateTime<Utc>>,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum RunJobsError {
     #[error("job failed: {0}")]
@@ -49,7 +55,6 @@ pub struct AgentRegister {
     platform: Option<AgentPlatform>,
     hostname: Option<String>,
     last_seen_at: Option<DateTime<Utc>>,
-    available_tools: Option<Vec<Tool>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -102,7 +107,7 @@ impl Agent {
     pub async fn new(base_url: String, token: String) -> Result<Agent, ClientError> {
         let mut client = ApiClient::new(base_url, token.clone())?;
 
-        let mut agent = Agent::get_by_id(&mut client, &token).await?;
+        let mut agent = Agent::get_info(&mut client).await?;
         agent.platform = Agent::get_platform();
         agent.hostname = Some(Agent::get_hostname());
         agent.client = client;
@@ -115,52 +120,60 @@ impl Agent {
         &self.available_tools
     }
 
+    pub async fn announce_presence(&mut self) -> Result<(), ClientError> {
+        info!("Announcing presence...");
+        let uri = "/self";
+        self.last_seen_at = Some(Utc::now());
+
+        let agent = AgentPresence {
+            last_seen_at: self.last_seen_at,
+        };
+
+        self.client.patch(uri, None, &agent).await?;
+        info!("Finished");
+
+        Ok(())
+    }
+
     pub async fn register(&mut self) -> Result<(), ClientError> {
-        let uri = format!("/agents/{}", self.id.unwrap());
+        info!("Registring agent...");
+        let uri = "/self";
         self.last_seen_at = Some(Utc::now());
 
         let agent = AgentRegister {
             hostname: self.hostname.clone(),
             platform: self.platform.clone(),
             last_seen_at: self.last_seen_at,
-            available_tools: self.available_tools.clone(),
         };
 
-        self.client.patch(&uri, None, &agent).await?;
+        self.client.patch(uri, None, &agent).await?;
+        info!("Done");
 
         Ok(())
     }
 
-    pub async fn get_by_id(client: &mut ApiClient, id: &str) -> Result<Agent, ClientError> {
-        let uri = format!("/agents/{}", id);
-        let res = client.get(&uri, None).await?;
+    pub async fn get_info(client: &mut ApiClient) -> Result<Agent, ClientError> {
+        let uri = "/self";
+        let res = client.get(uri, None).await?;
         let data = res.data.unwrap();
         let agent: Agent = serde_json::from_value(data).map_err(ClientError::ParseError)?;
-
-        // jobs from /agents/<id> might already be competed
-        {
-            debug!("FILTERING JOBS OF AGENT ==> {}", agent.id.unwrap());
-            let mut guard = agent.jobs.lock().unwrap();
-            let filtered: Vec<Arc<Job>> = guard
-                .iter()
-                .filter(|job| job.get_started_at().is_none() && job.get_completed_at().is_none())
-                .cloned()
-                .collect();
-            *guard = filtered;
-        }
 
         Ok(agent)
     }
 
     pub async fn get_jobs(&mut self) -> Result<(), ClientError> {
-        let uri = format!("/agents/{}/jobs", self.id.unwrap());
-        let res = self.client.get(&uri, None).await?;
+        info!("Fetching jobs...");
+
+        let uri = "/jobs";
+        let res = self.client.get(uri, None).await?;
         let jobs: Vec<Job> = serde_json::from_value(res.data.unwrap()).unwrap();
 
         if !jobs.is_empty() {
             let mut guard = self.jobs.lock().unwrap();
             guard.extend(jobs.into_iter().map(Arc::new));
         }
+
+        info!("Finished");
 
         Ok(())
     }
@@ -176,18 +189,15 @@ impl Agent {
         };
 
         let futures = jobs.into_iter().map(|job| {
+            info!("Running job: {}", &job);
             tokio::task::spawn(async move {
                 match job.run() {
                     Ok(output) => {
-                        debug!("Job {} finished, creating Report...", job.get_id());
-                        debug!(
-                            "Job {} output => {}<===",
-                            job.get_id(),
-                            &job.get_result_as_string().unwrap_or_default()
-                        );
+                        info!("Job {} finished, creating Report...", job.get_id());
                         job.set_result(output.clone());
                         job.set_completed_at();
                         job.set_success(true);
+
                         Ok(output)
                     }
                     Err(err) => {
@@ -195,7 +205,8 @@ impl Agent {
                         job.set_completed_at();
                         job.set_success(false);
                         Err(RunJobsError::JobFailed(format!(
-                            "{}: {}",
+                            "Job {} failed, {}: {}",
+                            &job,
                             job.get_action(),
                             err
                         )))
@@ -274,14 +285,16 @@ impl Agent {
     }
 
     pub async fn submit_capabilities(&mut self) -> Result<(), ClientError> {
+        info!("Submitting submit_capabilities...");
         self.available_tools = Some(self.get_available_tools().await?);
-        let uri = format!("/agents/{}", self.id.unwrap());
 
+        let uri = "/self";
         let capabilities = AgentCapabilities {
             available_tools: self.available_tools.clone(),
         };
 
-        self.client.patch(&uri, None, &capabilities).await?;
+        self.client.patch(uri, None, &capabilities).await?;
+        info!("Done");
 
         Ok(())
     }
@@ -298,6 +311,8 @@ impl Agent {
             .collect();
 
         for job in jobs {
+            info!("Submitting job report...");
+
             let uri = format!("/jobs/{}", job.get_id());
             job.set_submitted(true);
 
@@ -309,6 +324,7 @@ impl Agent {
             };
 
             self.client.patch(&uri, None, &patch).await?;
+            info!("Finished!");
         }
 
         Ok(())

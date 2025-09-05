@@ -56,7 +56,7 @@ impl ApiClient {
         headers: Option<HeaderMap>,
     ) -> Result<ApiData<serde_json::Value>, ClientError> {
         let url = format!("{}{}", self.base_url, uri);
-        let request = self.client.get(url);
+        let request = self.client.get(url).bearer_auth(&self.token);
 
         self.send(request, headers).await
     }
@@ -70,7 +70,7 @@ impl ApiClient {
         body: &T,
     ) -> Result<ApiData<serde_json::Value>, ClientError> {
         let url = format!("{}{}", self.base_url, uri);
-        let request = self.client.post(url).json(body);
+        let request = self.client.post(url).json(body).bearer_auth(&self.token);
 
         self.send(request, headers).await
     }
@@ -82,7 +82,7 @@ impl ApiClient {
         body: &T,
     ) -> Result<ApiData<serde_json::Value>, ClientError> {
         let url = format!("{}{}", self.base_url, uri);
-        let request = self.client.patch(url).json(body);
+        let request = self.client.patch(url).json(body).bearer_auth(&self.token);
 
         self.send(request, headers).await
     }
