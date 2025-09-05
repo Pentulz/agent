@@ -107,7 +107,21 @@ docker compose up --build
 #### Examples
 
 ```sh
-# TODO
+sudo agent \
+  --token "<agent-token-here>" \
+  --api-url "http://localhost:8000/api/v1/protected" \
+  --refresh-timeout 30
+```
+
+```sh
+docker run --rm -it \
+  --name pentulz_agent \
+  --user root \
+  --network host \
+  ghcr.io/pentulz/agent:latest agent \
+  --token "<agent-token-here>" \
+  --api-url "http://localhost:8000/api/v1/protected" \
+  --refresh-timeout 30
 ```
 
 #### Github actions
