@@ -82,8 +82,23 @@ impl Tool {
 
                 #[cfg(windows)]
                 {
-                    if full_path.exists() {
-                        return true; // existence is usually enough on Windows
+                    // Get PATHEXT for executable extensions
+                    let exts: Vec<String> = std::env::var_os("PATHEXT")
+                        .map(|s| {
+                            s.to_string_lossy()
+                                .split(';')
+                                .map(|e| e.to_string())
+                                .collect()
+                        })
+                        .unwrap_or_else(|| vec![".EXE".into(), ".BAT".into(), ".CMD".into()]);
+
+                    for path in std::env::split_paths(&paths) {
+                        for ext in &exts {
+                            let candidate = path.join(format!("{}{}", self.cmd, ext));
+                            if candidate.exists() {
+                                return true;
+                            }
+                        }
                     }
                 }
             }
