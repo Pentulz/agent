@@ -70,38 +70,36 @@ impl Tool {
     /// code where we had to use macros to cross-platform
     pub fn is_available(&self) -> bool {
         if let Some(paths) = env::var_os("PATH") {
-            for path in env::split_paths(&paths) {
-                #[cfg(unix)]
-                {
+            #[cfg(unix)]
+            {
+                for path in env::split_paths(&paths) {
                     let full_path = path.join(&self.cmd);
-
                     if let Ok(metadata) = fs::metadata(&full_path) {
                         use std::os::unix::fs::PermissionsExt;
                         let mode = metadata.permissions().mode();
                         if mode & 0o111 != 0 {
-                            return true; // has any execute bit
+                            return true; // executable bit set
                         }
                     }
                 }
+            }
 
-                #[cfg(windows)]
-                {
-                    // Get PATHEXT for executable extensions
-                    let exts: Vec<String> = std::env::var_os("PATHEXT")
-                        .map(|s| {
-                            s.to_string_lossy()
-                                .split(';')
-                                .map(|e| e.to_string())
-                                .collect()
-                        })
-                        .unwrap_or_else(|| vec![".EXE".into(), ".BAT".into(), ".CMD".into()]);
+            #[cfg(windows)]
+            {
+                let exts: Vec<String> = env::var_os("PATHEXT")
+                    .map(|s| {
+                        s.to_string_lossy()
+                            .split(';')
+                            .map(|e| e.to_string())
+                            .collect()
+                    })
+                    .unwrap_or_else(|| vec![".EXE".into(), ".BAT".into(), ".CMD".into()]);
 
-                    for path in std::env::split_paths(&paths) {
-                        for ext in &exts {
-                            let candidate = path.join(format!("{}{}", self.cmd, ext));
-                            if candidate.exists() {
-                                return true;
-                            }
+                for path in env::split_paths(&paths) {
+                    for ext in &exts {
+                        let candidate = path.join(format!("{}{}", self.cmd, ext));
+                        if candidate.exists() {
+                            return true;
                         }
                     }
                 }
