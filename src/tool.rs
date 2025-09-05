@@ -71,10 +71,10 @@ impl Tool {
     pub fn is_available(&self) -> bool {
         if let Some(paths) = env::var_os("PATH") {
             for path in env::split_paths(&paths) {
-                let full_path = path.join(&self.cmd);
-
                 #[cfg(unix)]
                 {
+                    let full_path = path.join(&self.cmd);
+
                     if let Ok(metadata) = fs::metadata(&full_path) {
                         use std::os::unix::fs::PermissionsExt;
                         let mode = metadata.permissions().mode();
