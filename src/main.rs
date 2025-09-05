@@ -43,7 +43,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut agent = match Agent::new(base_url, token).await {
         Ok(a) => a,
         Err(error) => {
-            error!("Error: {}", error);
+            error!("{}", error);
             return Err(error.into());
         }
     };
@@ -57,11 +57,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     agent.submit_capabilities().await?;
 
     // TODO: handle errors not related to JobFailed
-    let _ = agent.run_jobs().await;
-    info!("Submitting job report...");
-    agent.submit_report().await?;
-    info!("Finished!");
-
     let term = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term))?;
     while !term.load(Ordering::Relaxed) {
