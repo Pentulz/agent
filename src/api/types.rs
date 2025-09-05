@@ -1,6 +1,7 @@
 use reqwest::StatusCode;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+// Struct to map API JSON successful responses
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ApiData<T> {
     #[serde(
@@ -20,6 +21,7 @@ impl<T> ApiData<T> {
     }
 }
 
+// JSON serialization / deserialization methods
 fn serialize_status_code<S>(code: &Option<StatusCode>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,

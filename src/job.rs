@@ -13,6 +13,7 @@ use chrono::{DateTime, Utc};
 
 use crate::action::Action;
 
+// structure to map Job's table on DB
 #[derive(Clone)]
 pub struct Job {
     id: Uuid,
@@ -28,6 +29,8 @@ pub struct Job {
     success: Arc<Mutex<Option<bool>>>,
 }
 
+// simpler structures to map API endpoints payload (easier for JOSN serialization/deserialization
+// and smaller payloads)
 #[derive(Debug, Serialize)]
 pub struct JobPatch {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -62,6 +65,7 @@ impl Job {
         }
     }
 
+    // this function is only intended to be used by unit tests. this is why it is private
     #[allow(clippy::too_many_arguments)]
     fn new_internal(
         id: Uuid,
@@ -99,6 +103,9 @@ impl Job {
     }
 
     pub fn run(&self) -> Result<String, std::io::Error> {
+        // use mutex in a scope it right after the end of the scope, it is dropped by default
+        // (closed if you will). this is a common practice in the Rust community (also propsed by
+        // the linter "clippy")
         {
             let mut guard = self.started_at.lock().unwrap();
             *guard = Some(Utc::now());
@@ -170,6 +177,7 @@ impl fmt::Debug for Job {
     }
 }
 
+// Custom JSON serialization / deserialization functions
 impl Serialize for Job {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

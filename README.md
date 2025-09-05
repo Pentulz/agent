@@ -19,6 +19,8 @@
   ·
   <a href="#documentation">Documentation</a>
   ·
+  <a href="#tests">Tests</a>
+  ·
   <a href="#contributing">Contributing</a>
   ·
   <a href="#license">License</a>
@@ -48,6 +50,7 @@
       </ul>
     </li>
     <li><a href="#documentation">Documentation</a></li>
+    <li><a href="#tests">Tests</a></li>
     <li><a href="#contributing">Contributing</a></li>
     <li><a href="#license">License</a></li>
     <li><a href="#contacts">Contacts</a></li>
@@ -164,6 +167,44 @@ All the following endpoints require a _Bearer authentication token_. This corres
 | `/api/v1/protected/self`      | PATCH  | Send agent's details such as hostname, capabilities and last_seen_at |
 | `/api/v1/protected/jobs`      | GET    | Fetch list of non-started jobs                                       |
 | `/api/v1/protected/jobs/<id>` | PATCH  | Update job's output                                                  |
+
+## Tests
+
+The unit tests can be run with:
+
+```sh
+cargo test
+# or run a specific one
+
+cargo test <test_name> # where <test_name> is the test name
+```
+
+In Rust, unit tests are in the same file/module we want to test instead of a file under `tests`.
+
+You can see at the end of each file in `src/`, there is the following section:
+
+```rust
+#[cfg(test)]
+mod tests {
+  // ....
+}
+```
+
+This indicates the rust compiler, that all the code inside the module tests, is intended to be part of unit tests.
+
+### Code coverage
+
+In order to have code coverage for this project, we used [cargo tarpaulin](https://github.com/xd009642/tarpaulin).
+
+To generate an HTML report, you can type:
+
+```sh
+cargo tarpaulin --all-features --workspace --timeout 120 --out html --output-dir coverage
+```
+
+This will generate a report under the `coverage/` directory.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- CONTRIBUTING -->
 

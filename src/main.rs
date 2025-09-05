@@ -18,6 +18,7 @@ mod tool;
 
 use crate::agent::Agent;
 
+// CLI args
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
@@ -56,7 +57,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     agent.submit_capabilities().await?;
 
-    // TODO: handle errors not related to JobFailed
     let term = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term))?;
     while !term.load(Ordering::Relaxed) {
