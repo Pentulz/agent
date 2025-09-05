@@ -19,6 +19,8 @@
   ·
   <a href="#contributing">Contributing</a>
   ·
+  <a href="#documentation">Documentation</a>
+  ·
   <a href="#license">License</a>
   ·
   <a href="#contacts">Contacts</a>
@@ -45,6 +47,7 @@
         <li><a href="#examples">Examples</a></li>
       </ul>
     </li>
+    <li><a href="#documentation">Documentation</a></li>
     <li><a href="#license">License</a></li>
     <li><a href="#contacts">Contacts</a></li>
   </ol>
@@ -135,6 +138,20 @@ act --artifact-server-path /tmp/artifacts
 ```
 
 This will upload the build artifact (binary file) into that directory.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Documentation
+
+### How it works
+
+The agent is a lightweight daemon that continuously polls a remote server for tasks to execute.
+
+Upon receiving a task, it executes the requested actions locally (for example, running scripts, binaries, or retrieving system information) and sends back the results to the server.
+
+The agent supports multiple platforms (Windows, macOS, Linux) and can manage multiple tools, reporting their availability and execution results.
+
+![](./docs/diagrams/sequence.svg)
 
 <!-- CONTRIBUTING -->
 
