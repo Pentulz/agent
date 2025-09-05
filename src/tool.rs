@@ -27,6 +27,7 @@ pub enum ToolError {
 }
 
 impl Tool {
+    /// Creates a new Tool instance with the given command and tries to fetch its version.
     #[allow(dead_code)]
     pub fn new(cmd: String) -> Tool {
         let mut tool = Tool {
@@ -44,6 +45,7 @@ impl Tool {
         tool
     }
 
+    /// Attempts to execute the tool with its version argument and store the version string.
     pub fn get_version(&mut self) -> Result<(), ToolError> {
         let version_arg = self
             .version_arg
@@ -64,6 +66,8 @@ impl Tool {
         &self.version
     }
 
+    /// Checks if the tool is available in the system PATH. Its the only part of the project's
+    /// code where we had to use macros to cross-platform
     pub fn is_available(&self) -> bool {
         if let Some(paths) = env::var_os("PATH") {
             for path in env::split_paths(&paths) {

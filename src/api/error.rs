@@ -2,6 +2,7 @@ use reqwest::StatusCode;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 
+// Struct to map JSON API error responses
 #[derive(Serialize, Deserialize)]
 pub struct ApiError {
     #[serde(
@@ -26,21 +27,13 @@ impl fmt::Display for ApiError {
 
 impl std::error::Error for ApiError {}
 
-// TODO: remove warning
-#[allow(dead_code)]
 impl ApiError {
     pub fn new(code: StatusCode, title: String) -> Self {
         ApiError { code, title }
     }
-
-    pub fn from_json(json_str: &str) -> Result<Self, serde_json::Error> {
-        serde_json::from_str(json_str)
-    }
-
-    pub fn to_json(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string(self)
-    }
 }
+
+// JSON serialization / deserialization methods
 
 // Fixed: StatusCode is not Option<StatusCode>
 fn serialize_status_code<S>(code: &StatusCode, serializer: S) -> Result<S::Ok, S::Error>

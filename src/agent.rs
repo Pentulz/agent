@@ -25,6 +25,8 @@ enum AgentPlatform {
     Windows,
 }
 
+/// Structs to map required JSON payload of API endpoints
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AgentCapabilities {
     available_tools: Option<Vec<Tool>>,
@@ -57,6 +59,8 @@ pub struct AgentRegister {
     last_seen_at: Option<DateTime<Utc>>,
 }
 
+/// Main agents structure. It maps the agent's table on the BD + has some required fields
+/// to properly handle running jobs in background (async)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Agent {
     id: Option<uuid::Uuid>,
@@ -80,6 +84,7 @@ pub struct Agent {
     client: ApiClient,
 }
 
+/// Serde JSON serialization and deserialization methods
 fn serialize_jobs<S>(jobs: &Arc<Mutex<Vec<Arc<Job>>>>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -120,6 +125,7 @@ impl Agent {
         &self.available_tools
     }
 
+    // performs PATCH /self
     pub async fn announce_presence(&mut self) -> Result<(), ClientError> {
         info!("Announcing presence...");
         let uri = "/self";
@@ -135,6 +141,7 @@ impl Agent {
         Ok(())
     }
 
+    // performs PATCH /self to update agent's hostname, platform and last_seen_at
     pub async fn register(&mut self) -> Result<(), ClientError> {
         info!("Registring agent...");
         let uri = "/self";
@@ -152,6 +159,7 @@ impl Agent {
         Ok(())
     }
 
+    // performs GET /self to fetch agent's info at the startup of this daemon
     pub async fn get_info(client: &mut ApiClient) -> Result<Agent, ClientError> {
         let uri = "/self";
         let res = client.get(uri, None).await?;
@@ -161,6 +169,7 @@ impl Agent {
         Ok(agent)
     }
 
+    // performs GET /jobs to fetch agent's jobs
     pub async fn get_jobs(&mut self) -> Result<(), ClientError> {
         info!("Fetching jobs...");
 
@@ -178,9 +187,12 @@ impl Agent {
         Ok(())
     }
 
+    // run jobs in background using tokio's futures and Arc + Mutexes to ensure the Agent structure
+    // is thread-safe
     pub async fn run_jobs(&self) -> Result<(), RunJobsError> {
         let jobs = {
             let guard = self.jobs.lock().map_err(|_| RunJobsError::Mutex)?;
+            // really make sure we do not rerun jobs that are already  running in the background
             guard
                 .iter()
                 .filter(|job| job.get_started_at().is_none() && job.get_completed_at().is_none())
@@ -188,6 +200,7 @@ impl Agent {
                 .collect::<Vec<_>>() // only fresh jobs
         };
 
+        // launch jobs in background
         let futures = jobs.into_iter().map(|job| {
             info!("Running job: {}", &job);
             tokio::task::spawn(async move {
@@ -215,6 +228,7 @@ impl Agent {
             })
         });
 
+        // wait for all jobs and start to fetch their output to return them
         let results = futures::future::join_all(futures).await;
         let mut reports = Vec::new();
         let mut errors = Vec::new();
@@ -245,6 +259,8 @@ impl Agent {
         }
     }
 
+    // perform GET /tools to fetch available tools on the API so the agent can check its own
+    // available tools (capabilities)
     async fn get_tools(&self) -> Result<Vec<Tool>, ClientError> {
         debug!("Getting tools...");
         let uri = "/tools";
@@ -267,6 +283,7 @@ impl Agent {
         tools
     }
 
+    // for each tool returned by the GET /tools, check locally if the agent has access to them
     pub async fn get_available_tools(&self) -> Result<Vec<Tool>, ClientError> {
         let mut available_tools: Vec<Tool> = self
             .get_tools()
@@ -284,6 +301,7 @@ impl Agent {
         Ok(available_tools)
     }
 
+    // perform PATCH /self to update its available_tools (capabilities)
     pub async fn submit_capabilities(&mut self) -> Result<(), ClientError> {
         info!("Submitting submit_capabilities...");
         self.available_tools = Some(self.get_available_tools().await?);
@@ -299,6 +317,7 @@ impl Agent {
         Ok(())
     }
 
+    // perform PATCH /jobs/<id> to update job's output after executing it
     pub async fn submit_report(&mut self) -> Result<(), ClientError> {
         let jobs: Vec<Arc<Job>> = self
             .jobs

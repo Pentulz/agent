@@ -35,6 +35,9 @@ pub enum ClientError {
     MissingData,
 }
 
+// Custom api client wrapped around rust's reqwest crate
+// to properly send JSON requests to the API
+// and parse its custom JSON responses format
 impl ApiClient {
     pub fn new(base_url: String, token: String) -> Result<Self, ClientError> {
         let api_url = Url::parse(&base_url);
@@ -61,7 +64,6 @@ impl ApiClient {
         self.send(request, headers).await
     }
 
-    // TODO: remove warning
     #[allow(dead_code)]
     pub async fn post<T: Serialize>(
         &self,
@@ -87,6 +89,8 @@ impl ApiClient {
         self.send(request, headers).await
     }
 
+    // to be called by each get, post, patch methods that simply build a RequestBuilder
+    // this one, submits it
     async fn send(
         &self,
         mut request: RequestBuilder,
@@ -100,6 +104,8 @@ impl ApiClient {
         self.handle_response(res).await
     }
 
+    // post send method to be called. it parses OK or ERROR api responses properly
+    // and return proper types
     async fn handle_response(
         &self,
         response: Response,

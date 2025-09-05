@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use spdlog::debug;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+/// Represents a command to execute with arguments and a variant label.
 pub struct Action {
     cmd: String,
     args: Vec<String>,
@@ -12,7 +13,6 @@ pub struct Action {
 
 impl Action {
     pub fn new(cmd: String, args: Vec<String>) -> Self {
-        // Action { cmd, args }
         Action {
             cmd,
             args,
@@ -20,6 +20,7 @@ impl Action {
         }
     }
 
+    /// Executes the command with its arguments and returns the standard output as a String.
     pub fn run(&self) -> Result<String, std::io::Error> {
         debug!("Action.run(): {:?}", self.cmd);
         let output = Command::new(&self.cmd).args(&self.args).output()?;
