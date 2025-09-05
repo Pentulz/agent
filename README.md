@@ -17,9 +17,9 @@
   ·
   <a href="#getting-started">Getting Started</a>
   ·
-  <a href="#contributing">Contributing</a>
-  ·
   <a href="#documentation">Documentation</a>
+  ·
+  <a href="#contributing">Contributing</a>
   ·
   <a href="#license">License</a>
   ·
@@ -48,6 +48,7 @@
       </ul>
     </li>
     <li><a href="#documentation">Documentation</a></li>
+    <li><a href="#contributing">Contributing</a></li>
     <li><a href="#license">License</a></li>
     <li><a href="#contacts">Contacts</a></li>
   </ol>
@@ -153,6 +154,17 @@ The agent supports multiple platforms (Windows, macOS, Linux) and can manage mul
 
 ![](./docs/diagrams/sequence.svg)
 
+### Consumed API endpoints
+
+All the following endpoints require a _Bearer authentication token_. This corresponds to the **--token** option of the agent (each agent has an unique and static token).
+
+| Endpoint                      | Method | Description                                                          |
+| ----------------------------- | ------ | -------------------------------------------------------------------- |
+| `/api/v1/protected/self`      | GET    | Retrieve agent's info                                                |
+| `/api/v1/protected/self`      | PATCH  | Send agent's details such as hostname, capabilities and last_seen_at |
+| `/api/v1/protected/jobs`      | GET    | Fetch list of non-started jobs                                       |
+| `/api/v1/protected/jobs/<id>` | PATCH  | Update job's output                                                  |
+
 <!-- CONTRIBUTING -->
 
 ## Contributing
@@ -164,6 +176,10 @@ Contributions are what make the open source community such an amazing place to l
 3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
 4. Push to the Branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
+
+The following diagram describes our CI/CD pipeline:
+
+![](./docs/diagrams/pipeline.jpg)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

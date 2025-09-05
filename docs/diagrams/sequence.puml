@@ -1,0 +1,18 @@
+@startuml
+
+participant "Agent" as Agent
+participant "Server" as Server
+
+== Initialization ==
+
+Agent -> Server: Register
+Agent -> Server: Submit capabilities
+
+== Main Loop ==
+loop While not received SIGTERM
+    Agent -> Server: Fetch jobs
+    Agent -> Agent: Execute jobs (async)
+    Agent -> Server: Submit job outputs
+end
+
+@enduml
