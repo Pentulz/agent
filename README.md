@@ -17,6 +17,8 @@
   ·
   <a href="#getting-started">Getting Started</a>
   ·
+  <a href="#documentation">Documentation</a>
+  ·
   <a href="#contributing">Contributing</a>
   ·
   <a href="#license">License</a>
@@ -45,6 +47,8 @@
         <li><a href="#examples">Examples</a></li>
       </ul>
     </li>
+    <li><a href="#documentation">Documentation</a></li>
+    <li><a href="#contributing">Contributing</a></li>
     <li><a href="#license">License</a></li>
     <li><a href="#contacts">Contacts</a></li>
   </ol>
@@ -136,6 +140,31 @@ act --artifact-server-path /tmp/artifacts
 
 This will upload the build artifact (binary file) into that directory.
 
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Documentation
+
+### How it works
+
+The agent is a lightweight daemon that continuously polls a remote server for tasks to execute.
+
+Upon receiving a task, it executes the requested actions locally (for example, running scripts, binaries, or retrieving system information) and sends back the results to the server.
+
+The agent supports multiple platforms (Windows, macOS, Linux) and can manage multiple tools, reporting their availability and execution results.
+
+![](./docs/diagrams/sequence.svg)
+
+### Consumed API endpoints
+
+All the following endpoints require a _Bearer authentication token_. This corresponds to the **--token** option of the agent (each agent has an unique and static token).
+
+| Endpoint                      | Method | Description                                                          |
+| ----------------------------- | ------ | -------------------------------------------------------------------- |
+| `/api/v1/protected/self`      | GET    | Retrieve agent's info                                                |
+| `/api/v1/protected/self`      | PATCH  | Send agent's details such as hostname, capabilities and last_seen_at |
+| `/api/v1/protected/jobs`      | GET    | Fetch list of non-started jobs                                       |
+| `/api/v1/protected/jobs/<id>` | PATCH  | Update job's output                                                  |
+
 <!-- CONTRIBUTING -->
 
 ## Contributing
@@ -147,6 +176,10 @@ Contributions are what make the open source community such an amazing place to l
 3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
 4. Push to the Branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
+
+The following diagram describes our CI/CD pipeline:
+
+![](./docs/diagrams/pipeline.jpg)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
