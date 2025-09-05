@@ -1,6 +1,34 @@
-# Pentulz Agent
-
 <a name="readme-top"></a>
+
+<p align="center">
+  <a href="https://github.com/Pentulz/Pentulz">
+    <img src="https://github.com/Pentulz/.github/blob/main/public/images/logo.png?raw=true" alt="Pentulz" width="200">
+  </a>
+</p>
+<h1 align="center">AGENT</h1>
+
+<p align="center">
+  <img alt="Rust" src="https://img.shields.io/badge/Rust-1.89-%23000000.svg?e&logo=rust&logoColor=white" />
+  <img alt="Docker" src="https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white" />
+</p>
+
+<p align="center">
+  <a href="#built-with">Built With</a>
+  ·
+  <a href="#getting-started">Getting Started</a>
+  ·
+  <a href="#contributing">Contributing</a>
+  ·
+  <a href="#license">License</a>
+  ·
+  <a href="#contacts">Contacts</a>
+</p>
+
+<p align="center">
+  Penetration testing orchestration: jobs, agents, and unified parsing.
+</p>
+
+---
 
 <details>
   <summary>Table of Contents</summary>
@@ -22,7 +50,7 @@
   </ol>
 </details>
 
-### Built With
+## Built With
 
 - [Rust 1.89][rust]
 
@@ -46,7 +74,7 @@ This application cannot be used on its own. It is simply a slave that will retri
 
   ```sh
   rustup toolchain install stable # (1.89 at the time of this writing)
-  
+
   rustup  default stable
   ```
 
@@ -125,6 +153,10 @@ Distributed under the MIT License. See `LICENSE` for more information.
 - [Thynkon](https://github.com/Thynkon)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+Made with ❤️ by the Pentulz team.
 
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
